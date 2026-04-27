@@ -1,105 +1,201 @@
+// هذه الصفحة تعرض بيانات المدرسة الحالية فقط بناءً على currentSchoolId
 import React, { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { GraduationCap, Filter, BookOpen, Clock, TrendingUp, Award, Loader2 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import {
+  GraduationCap,
+  Filter,
+  BookOpen,
+  Clock,
+  TrendingUp,
+  Award,
+  Loader2,
+  Calendar,
+} from "lucide-react";
 import { AppLayout } from "@/components/layout";
 import { StatCard, EmptyState } from "@/components/common";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-} from "recharts";
+import { CSSBarChart } from "@/components/charts/CSSBarChart";
+import { useCurrentSchool } from "@/utils/useCurrentSchool";
+
+const toMinutesLabel = (minutes) => `${Number(minutes || 0)} دقيقة`;
+
+const formatDateTime = (ts) => {
+  if (!ts) return "غير متوفر";
+  try {
+    const d = typeof ts === "number" ? new Date(ts) : new Date(ts);
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(ts);
+  }
+};
+
+const getDaysSince = (lastDate) => {
+  if (!lastDate) return "-";
+  try {
+    const last =
+      typeof lastDate === "number" ? new Date(lastDate) : new Date(lastDate);
+    const now = new Date();
+    const diffTime = Math.abs(now - last);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "اليوم";
+    if (diffDays === 1) return "أمس";
+    return `${diffDays} يوم`;
+  } catch {
+    return "-";
+  }
+};
+
+// دالة لاستخراج نوع المتصفح من userAgent بشكل مبسط
+const getBrowserName = (ua) => {
+  if (!ua) return "غير معروف";
+  if (ua.includes("Chrome") && !ua.includes("Edge")) return "Chrome";
+  if (ua.includes("Safari") && !ua.includes("Chrome")) return "Safari";
+  if (ua.includes("Firefox")) return "Firefox";
+  if (ua.includes("Edge")) return "Edge";
+  if (ua.includes("Opera") || ua.includes("OPR")) return "Opera";
+  return "غير معروف";
+};
 
 const StudentsPage = () => {
-  const [schoolFilter, setSchoolFilter] = useState("all");
   const [courseFilter, setCourseFilter] = useState("all");
 
-  // Fetch real data from Convex
-  const studentInteractionsData = useQuery("studentInteractions:list");
+  const { schoolId } = useCurrentSchool();
 
-  // Use data or empty array
-  const studentInteractions = studentInteractionsData || [];
+  // جلب بيانات التفاعل من Convex
+  const studentInteractionsData = useQuery(api.studentInteractions.list, { schoolId });
+  const raw = useMemo(() => studentInteractionsData || [], [studentInteractionsData]);
 
-  // Aggregate interactions by student - always call useMemo
-  const studentData = useMemo(() => {
-    const aggregated = {};
-    studentInteractions.forEach(interaction => {
-      const studentName = `${interaction.firstName || ''} ${interaction.lastName || ''}`.trim();
-      if (!studentName) return;
-      
-      const key = `${studentName}-${interaction.schoolName}`;
-      if (!aggregated[key]) {
-        aggregated[key] = {
+  // تجميع الطلاب (صف واحد لكل طالب)
+  const studentsAggregated = useMemo(() => {
+    const map = new Map();
+    raw.forEach((r) => {
+      const firstName = (r.firstName || "").trim();
+      const lastName = (r.lastName || "").trim();
+      const studentName = `${firstName} ${lastName}`.trim() || "بدون اسم";
+      const lmsId = r.lmsId;
+      const key = `${lmsId}||${studentName}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          lmsId,
           studentName,
-          firstName: interaction.firstName,
-          lastName: interaction.lastName,
-          schoolName: interaction.schoolName,
           courses: new Set(),
           totalTime: 0,
-          interactions: 0
-        };
+          interactions: 0,
+          lastAccessTime: r._creationTime,
+          lastUserAgent: r.userAgent || "",
+        });
       }
-      aggregated[key].totalTime += (interaction.totalTime || 0);
-      aggregated[key].interactions += 1;
-      if (interaction.courseName) {
-        aggregated[key].courses.add(interaction.courseName);
+      const student = map.get(key);
+      student.totalTime += Number(r.totalTime || 0);
+      student.interactions += 1;
+      if (r.courseName) student.courses.add(r.courseName);
+      // تحديث آخر دخول (أكبر تاريخ)
+      if (r._creationTime > student.lastAccessTime) {
+        student.lastAccessTime = r._creationTime;
+        student.lastUserAgent = r.userAgent || "";
       }
     });
-    
-    return Object.values(aggregated).map(s => ({
+
+    return Array.from(map.values()).map((s) => ({
       ...s,
-      courses: Array.from(s.courses)
+      coursesArray: Array.from(s.courses),
+      coursesText: Array.from(s.courses).join("، ") || "-",
+      browser: getBrowserName(s.lastUserAgent),
     }));
-  }, [studentInteractions]);
+  }, [raw]);
 
-  // Get unique values for filters
-  const schools = useMemo(() => {
-    return [...new Set(studentData.map(s => s.schoolName))].filter(Boolean);
-  }, [studentData]);
-  
-  const allCourses = useMemo(() => {
-    return [...new Set(studentInteractions.map(i => i.courseName))].filter(Boolean);
-  }, [studentInteractions]);
+  // فلترة حسب المادة
+  const courses = useMemo(
+    () => [
+      ...new Set(
+        raw
+          .map((r) => r.courseName)
+          .filter(Boolean)
+      ),
+    ],
+    [raw]
+  );
 
-  // Filter data
   const filteredStudents = useMemo(() => {
-    return studentData
-      .filter(s => schoolFilter === "all" || s.schoolName === schoolFilter)
-      .filter(s => courseFilter === "all" || s.courses.includes(courseFilter));
-  }, [studentData, schoolFilter, courseFilter]);
+    if (courseFilter === "all") return studentsAggregated;
+    return studentsAggregated.filter((s) =>
+      s.coursesArray.includes(courseFilter)
+    );
+  }, [studentsAggregated, courseFilter]);
 
-  // Calculate stats
-  const stats = useMemo(() => ({
-    totalStudents: filteredStudents.length,
-    totalInteractions: filteredStudents.reduce((sum, s) => sum + s.interactions, 0),
-    avgTime: filteredStudents.length > 0 
-      ? Math.round(filteredStudents.reduce((sum, s) => sum + s.totalTime, 0) / filteredStudents.length) 
-      : 0,
-    totalTime: filteredStudents.reduce((sum, s) => sum + s.totalTime, 0),
-  }), [filteredStudents]);
-
-  // Top students by time
-  const topStudents = useMemo(() => {
-    return [...filteredStudents]
-      .sort((a, b) => b.totalTime - a.totalTime)
-      .slice(0, 10);
+  // إحصائيات
+  const stats = useMemo(() => {
+    if (filteredStudents.length === 0) {
+      return {
+        totalStudents: 0,
+        totalInteractions: 0,
+        totalTime: 0,
+        avgTime: 0,
+      };
+    }
+    const totalStudents = filteredStudents.length;
+    const totalInteractions = filteredStudents.reduce(
+      (sum, s) => sum + s.interactions,
+      0
+    );
+    const totalTime = filteredStudents.reduce(
+      (sum, s) => sum + s.totalTime,
+      0
+    );
+    const avgTime = Math.round(totalTime / totalStudents);
+    return { totalStudents, totalInteractions, totalTime, avgTime };
   }, [filteredStudents]);
 
-  // Loading state - after all hooks
+  // أعلى الطلاب تفاعلاً
+  const topStudents = useMemo(
+    () =>
+      [...filteredStudents]
+        .sort((a, b) => b.totalTime - a.totalTime)
+        .slice(0, 10)
+        .map((s) => ({
+          ...s,
+          shortName:
+            s.studentName.length > 18
+              ? s.studentName.slice(0, 16) + "..."
+              : s.studentName,
+        })),
+    [filteredStudents]
+  );
+
+  // حالة التحميل
   if (studentInteractionsData === undefined) {
     return (
-      <AppLayout title="الطلاب">
+      <AppLayout title="تفاعل الطلاب">
         <div className="flex h-96 items-center justify-center">
           <div className="text-center">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">جاري تحميل البيانات...</p>
+            <p className="mt-4 text-muted-foreground">
+              جاري تحميل بيانات التفاعل...
+            </p>
           </div>
         </div>
       </AppLayout>
@@ -107,20 +203,20 @@ const StudentsPage = () => {
   }
 
   return (
-    <AppLayout title="الطلاب">
-      <div className="space-y-6">
-        {/* Page Title */}
-        <div className="mb-4">
+    <AppLayout title="تفاعل الطلاب">
+      <div className="space-y-6" dir="rtl">
+        {/* العنوان */}
+        <div className="mb-2 text-right">
           <h1 className="text-2xl font-bold text-foreground">تفاعل الطلاب</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            تحليل تفاعل الطلاب مع المحتوى التعليمي - مدرسة ابن تيمية الثانوية للبنين
+            ملخص تفاعل الطلاب على المنصة - مجمّع حسب الطالب
           </p>
         </div>
 
-        {/* Stats Cards */}
+        {/* البطاقات */}
         <div className="grid gap-4 md:grid-cols-4">
           <StatCard
-            title="إجمالي الطلاب"
+            title="عدد الطلاب"
             value={stats.totalStudents}
             icon={GraduationCap}
             variant="primary"
@@ -133,57 +229,47 @@ const StudentsPage = () => {
           />
           <StatCard
             title="متوسط وقت التفاعل"
-            value={`${stats.avgTime} دقيقة`}
+            value={toMinutesLabel(stats.avgTime)}
             icon={Clock}
             variant="success"
           />
           <StatCard
             title="إجمالي وقت التفاعل"
-            value={`${stats.totalTime} دقيقة`}
+            value={toMinutesLabel(stats.totalTime)}
             icon={TrendingUp}
             variant="warning"
           />
         </div>
 
-        {/* Top Students Chart */}
+        {/* أعلى الطلاب تفاعلاً */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Award className="h-5 w-5 text-primary" />
-              أعلى الطلاب تفاعلاً (حسب الوقت)
+              أعلى الطلاب تفاعلاً (حسب إجمالي الوقت)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {topStudents.length > 0 ? (
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topStudents} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis 
-                      dataKey="studentName"
-                      type="category" 
-                      width={120}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ direction: 'rtl', textAlign: 'right' }}
-                      formatter={(value) => [`${value} دقيقة`, 'وقت التفاعل']}
-                    />
-                    <Bar dataKey="totalTime" fill="hsl(345, 65%, 35%)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <CSSBarChart
+                data={topStudents.map((s) => ({
+                  label: s.studentName,
+                  value: Number(s.totalTime || 0),
+                  color: "hsl(345, 65%, 35%)",
+                }))}
+                formatValue={(v) => `${v} دقيقة`}
+                maxRows={10}
+              />
             ) : (
-              <EmptyState 
+              <EmptyState
                 title="لا توجد بيانات"
-                description="يرجى رفع ملف تفاعل الطلاب أولاً"
+                description="لم يتم العثور على بيانات تفاعل كافية لعرض الرسم"
               />
             )}
           </CardContent>
         </Card>
 
-        {/* Filters */}
+        {/* الفلاتر */}
         <Card>
           <CardContent className="py-4">
             <div className="flex flex-wrap items-center gap-4">
@@ -191,25 +277,17 @@ const StudentsPage = () => {
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">تصفية:</span>
               </div>
-              <Select value={schoolFilter} onValueChange={setSchoolFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="المدرسة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">جميع المدارس</SelectItem>
-                  {schools.map(school => (
-                    <SelectItem key={school} value={school}>{school}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
               <Select value={courseFilter} onValueChange={setCourseFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="المادة" />
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="المادة / المقرر" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع المواد</SelectItem>
-                  {allCourses.map(course => (
-                    <SelectItem key={course} value={course}>{course}</SelectItem>
+                  {courses.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -217,61 +295,105 @@ const StudentsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Students Table */}
+        {/* جدول تفاعل الطلاب (مجمّع) */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <GraduationCap className="h-5 w-5 text-primary" />
-              جدول تفاعل الطلاب
+              جدول تفاعل الطلاب (مجمّع)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {filteredStudents.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">اسم الطالب</TableHead>
-                    <TableHead className="text-right">المدرسة</TableHead>
-                    <TableHead className="text-right">المواد</TableHead>
-                    <TableHead className="text-right">عدد التفاعلات</TableHead>
-                    <TableHead className="text-right">إجمالي الوقت</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.slice(0, 30).map((student, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">
-                        {student.studentName}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{student.schoolName}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {student.courses.slice(0, 3).map((course, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {course}
-                            </Badge>
-                          ))}
-                          {student.courses.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{student.courses.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{student.interactions}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="bg-info/10 text-info border-info/20">
-                          {student.totalTime} دقيقة
-                        </Badge>
-                      </TableCell>
+              <div className="overflow-x-auto rounded-xl border bg-card">
+                <Table className="[&_*]:text-right text-sm">
+                  <TableHeader className="bg-muted/40">
+                    <TableRow>
+                      <TableHead className="w-12 text-center">#</TableHead>
+                      <TableHead className="w-28">LMS ID</TableHead>
+                      <TableHead className="w-52">اسم الطالب</TableHead>
+                      <TableHead className="w-72">المقررات</TableHead>
+                      <TableHead className="w-32">عدد التفاعلات</TableHead>
+                      <TableHead className="w-32">إجمالي الوقت</TableHead>
+                      <TableHead className="w-44">آخر دخول</TableHead>
+                      <TableHead className="w-28">منذ</TableHead>
+                      <TableHead className="w-32">المتصفح</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudents.slice(0, 200).map((s, idx) => (
+                      <TableRow
+                        key={s.lmsId + s.studentName}
+                        className={idx % 2 === 0 ? "bg-background" : "bg-muted/10"}
+                      >
+                        <TableCell className="text-center text-xs text-muted-foreground">
+                          {idx + 1}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {s.lmsId}
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          {s.studentName}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {s.coursesArray.slice(0, 3).map((c, i) => (
+                              <Badge
+                                key={i}
+                                variant="outline"
+                                className="text-xs bg-blue-50 border-blue-200"
+                              >
+                                {c}
+                              </Badge>
+                            ))}
+                            {s.coursesArray.length > 3 && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-slate-50 border-slate-300"
+                              >
+                                +{s.coursesArray.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-purple-50 border-purple-200">
+                            {s.interactions}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold"
+                          >
+                            {toMinutesLabel(s.totalTime)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDateTime(s.lastAccessTime)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-orange-50 border-orange-200 text-orange-700"
+                          >
+                            {getDaysSince(s.lastAccessTime)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {s.browser}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ) : (
-              <EmptyState 
+              <EmptyState
                 title="لا توجد بيانات طلاب"
-                description="يرجى رفع ملف تفاعل الطلاب أولاً"
+                description="يرجى رفع ملف تفاعل الطلاب أو تعديل الفلاتر"
               />
             )}
           </CardContent>

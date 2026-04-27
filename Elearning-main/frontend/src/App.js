@@ -12,6 +12,8 @@ import {
   TeachersPerformancePage,
   StudentsPage,
   ComparisonsPage,
+  TermSettingsPage,
+  ReportsPage,
 } from "@/pages";
 
 function App() {
@@ -25,9 +27,14 @@ function App() {
             <Route path="/leaderboards" element={<LeaderboardsPage />} />
             <Route path="/assessments" element={<AssessmentsPage />} />
             <Route path="/user-activity" element={<UserActivityPage />} />
-            <Route path="/teachers-performance" element={<TeachersPerformancePage />} />
+            <Route
+              path="/teachers-performance"
+              element={<TeachersPerformancePage />}
+            />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/comparisons" element={<ComparisonsPage />} />
+            <Route path="/term-settings" element={<TermSettingsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
           </Routes>
         </BrowserRouter>
         <Toaster position="top-center" dir="rtl" />

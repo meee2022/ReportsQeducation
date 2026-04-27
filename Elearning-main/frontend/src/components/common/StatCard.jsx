@@ -1,55 +1,44 @@
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-export const StatCard = ({ 
-  title, 
-  value, 
-  icon: Icon, 
-  trend, 
+export const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  trend,
   trendValue,
   variant = "default",
-  className 
+  className,
 }) => {
-  const variants = {
-    default: "bg-card",
-    primary: "bg-primary/5 border-primary/20",
-    success: "bg-success/5 border-success/20",
-    warning: "bg-warning/5 border-warning/20",
-    info: "bg-info/5 border-info/20",
+  const variantColors = {
+    default: "#64748b",
+    primary: "#1d4ed8",
+    success: "#16a34a",
+    warning: "#ca8a04",
+    info: "#0284c7",
   };
-
-  const iconVariants = {
-    default: "bg-muted text-muted-foreground",
-    primary: "bg-primary/10 text-primary",
-    success: "bg-success/10 text-success",
-    warning: "bg-warning/10 text-warning",
-    info: "bg-info/10 text-info",
-  };
+  const accent = variantColors[variant] || variantColors.default;
 
   return (
-    <Card className={cn("transition-shadow hover:shadow-md", variants[variant], className)}>
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
-            {trend && (
-              <div className={cn(
-                "mt-2 flex items-center gap-1 text-xs font-medium",
-                trend === "up" ? "text-success" : trend === "down" ? "text-destructive" : "text-muted-foreground"
-              )}>
-                <span>{trendValue}</span>
-              </div>
-            )}
-          </div>
-          {Icon && (
-            <div className={cn("rounded-lg p-3", iconVariants[variant])}>
-              <Icon className="h-6 w-6" />
-            </div>
-          )}
+    <div className={cn("rounded-xl border bg-white shadow-sm p-4 flex items-center gap-3", className)}
+      style={{ borderRight: `4px solid ${accent}` }}>
+      {Icon && (
+        <div className="rounded-lg p-2.5 flex-shrink-0" style={{ background: `${accent}18` }}>
+          <Icon className="h-5 w-5" style={{ color: accent }} />
         </div>
-      </CardContent>
-    </Card>
+      )}
+      <div className="min-w-0 flex-1 whitespace-nowrap overflow-hidden">
+        <p className="text-xs text-slate-500 font-medium truncate">{title}</p>
+        <p className="text-xl font-extrabold text-slate-800">{value}</p>
+        {trend && (
+          <div className={cn(
+            "mt-1 text-xs truncate font-medium",
+            trend === "up" ? "text-emerald-600" : trend === "down" ? "text-rose-600" : "text-slate-400"
+          )}>
+            {trendValue}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

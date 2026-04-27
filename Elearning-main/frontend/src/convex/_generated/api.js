@@ -1,36 +1,23 @@
-// API references for Convex queries and mutations
-// These reference the functions defined in your Convex backend
+/* eslint-disable */
+/**
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
+ */
 
-// Query references
-export const queries = {
-  // Lessons aggregation
-  lessonsAggList: "lessonsAgg:list",
-  
-  // Assessments aggregation
-  assessmentsAggList: "assessmentsAgg:list",
-  
-  // Student leaderboards
-  studentLeaderboardsList: "studentLeaderboards:list",
-  
-  // Teacher leaderboards
-  teacherLeaderboardsList: "teacherLeaderboards:list",
-  
-  // User activity
-  userActivityList: "userActivity:list",
-  
-  // Student interactions
-  studentInteractionsList: "studentInteractions:list",
-  
-  // Overall stats
-  overallStats: "stats:overallStats",
-};
+import { anyApi, componentsGeneric } from "convex/server";
 
-// Mutation references
-export const mutations = {
-  uploadLessonsCsv: "uploads:uploadLessonsCsv",
-  uploadAssessmentsCsv: "uploads:uploadAssessmentsCsv",
-  uploadStudentLeaderboardCsv: "uploads:uploadStudentLeaderboardCsv",
-  uploadTeacherLeaderboardCsv: "uploads:uploadTeacherLeaderboardCsv",
-  uploadUserActivityCsv: "uploads:uploadUserActivityCsv",
-  uploadStudentInteractionsCsv: "uploads:uploadStudentInteractionsCsv",
-};
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+export const api = anyApi;
+export const internal = anyApi;
+export const components = componentsGeneric();

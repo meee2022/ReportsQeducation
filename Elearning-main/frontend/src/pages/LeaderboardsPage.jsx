@@ -1,463 +1,505 @@
+// هذه الصفحة تعرض بيانات المدرسة الحالية فقط بناءً على currentSchoolId
 import React, { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { Trophy, Users, School, TrendingUp, Filter, Loader2 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
+import {
+  Trophy, Users, School, TrendingUp, Filter,
+  Loader2, ExternalLink, Star,
+} from "lucide-react";
 import { AppLayout } from "@/components/layout";
-import { StatCard, StarRating, RankBadge, LevelBadge, EmptyState } from "@/components/common";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StarRating, RankBadge, LevelBadge, EmptyState } from "@/components/common";
+import { useCurrentSchool } from "@/utils/useCurrentSchool";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-} from "recharts";
+import { CSSBarChart } from "@/components/charts/CSSBarChart";
+import { parseLevelNum, getBadge } from "@/utils/levelUtils";
+
+const PAGE_SIZE = 10;
+const MAROON = "#7f1d1d";
+const MAROON_M = "#fca5a5";
+
+
+/* ── بطاقة إحصاء صغيرة ── */
+const SCard = ({ label, value, sub, icon: Icon, accent = MAROON }) => (
+  <div className="rounded-xl border bg-white shadow-sm p-4 flex items-center gap-3"
+    style={{ borderTop: `3px solid ${accent}` }}>
+    <div className="rounded-lg p-2.5 flex-shrink-0" style={{ background: `${accent}15` }}>
+      <Icon className="h-5 w-5" style={{ color: accent }} />
+    </div>
+    <div className="min-w-0">
+      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+      <p className="text-2xl font-extrabold leading-none" style={{ color: accent }}>
+        {Number(value || 0).toLocaleString("en-US")}
+      </p>
+      {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
+    </div>
+  </div>
+);
+
+/* ── بطاقة أفضل معلم / طالب ── */
+const TopCard = ({ label, name, points }) => (
+  <div className="rounded-xl border bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm p-4 flex items-center gap-3"
+    style={{ borderTop: "3px solid #f59e0b" }}>
+    <div className="rounded-full bg-amber-100 p-2.5 flex-shrink-0">
+      <Trophy className="h-5 w-5 text-amber-500" />
+    </div>
+    <div className="min-w-0">
+      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+      <p className="text-sm font-bold text-slate-800 truncate">{name || "—"}</p>
+      {points > 0 && (
+        <p className="text-xs font-semibold text-amber-600 mt-0.5">
+          {Number(points).toLocaleString("en-US")} نقطة
+        </p>
+      )}
+    </div>
+  </div>
+);
+
+const getRating = (pts) => pts >= 250 ? 5 : pts >= 150 ? 4 : pts >= 100 ? 3 : pts >= 50 ? 2 : 1;
+
+const CHART_COLORS = ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2", "#fff1f2"];
 
 const LeaderboardsPage = () => {
   const [activeTab, setActiveTab] = useState("teachers");
   const [schoolFilter, setSchoolFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
+  const [studentLevelFilter, setStudentLevelFilter] = useState("all");
   const [gradeFilter, setGradeFilter] = useState("all");
   const [viewMode, setViewMode] = useState("table");
+  const [showAllTeachers, setShowAllTeachers] = useState(false);
+  const [showAllStudents, setShowAllStudents] = useState(false);
 
-  // Fetch real data from Convex
-  const teacherLeaderboards = useQuery("teacherLeaderboards:list");
-  const studentLeaderboards = useQuery("studentLeaderboards:list");
+  const { schoolId } = useCurrentSchool();
+  const teacherLeaderboards = useQuery(api.teacherLeaderboards.list, { schoolId });
+  const studentLeaderboards = useQuery(api.studentLeaderboards.list, { schoolId });
 
-  // Loading state
-  const isLoading = teacherLeaderboards === undefined || studentLeaderboards === undefined;
+  const teachers = useMemo(() => teacherLeaderboards || [], [teacherLeaderboards]);
+  const students = useMemo(() => studentLeaderboards || [], [studentLeaderboards]);
 
-  // Use real data
-  const teachers = teacherLeaderboards || [];
-  const students = studentLeaderboards || [];
+  const schools = useMemo(() => [...new Set([...teachers.map(t => t.schoolName), ...students.map(s => s.schoolName)])].filter(Boolean), [teachers, students]);
+  const grades = useMemo(() => [...new Set(students.map(s => s.grade))].filter(Boolean), [students]);
 
-  // Get unique schools
-  const schools = useMemo(() => {
-    const allSchools = [...new Set([
-      ...teachers.map(t => t.schoolName), 
-      ...students.map(s => s.schoolName)
-    ])];
-    return allSchools.filter(Boolean);
-  }, [teachers, students]);
-
-  // Get unique grades for students
-  const grades = useMemo(() => {
-    return [...new Set(students.map(s => s.grade))].filter(Boolean);
-  }, [students]);
-
-  // Filter data
-  const filteredTeachers = useMemo(() => {
-    return teachers
+  const filteredTeachers = useMemo(() =>
+    teachers
       .filter(t => schoolFilter === "all" || t.schoolName === schoolFilter)
       .filter(t => levelFilter === "all" || t.level?.toString() === levelFilter)
-      .sort((a, b) => (b.points || 0) - (a.points || 0));
-  }, [teachers, schoolFilter, levelFilter]);
+      .sort((a, b) => parseLevelNum(b.level) - parseLevelNum(a.level) || (b.points || 0) - (a.points || 0)),
+    [teachers, schoolFilter, levelFilter]);
 
-  const filteredStudents = useMemo(() => {
-    return students
+  const filteredStudents = useMemo(() =>
+    students
       .filter(s => schoolFilter === "all" || s.schoolName === schoolFilter)
       .filter(s => gradeFilter === "all" || s.grade === gradeFilter)
-      .sort((a, b) => (b.points || 0) - (a.points || 0));
-  }, [students, schoolFilter, gradeFilter]);
+      .filter(s => studentLevelFilter === "all" || s.level?.toString() === studentLevelFilter)
+      .sort((a, b) => parseLevelNum(b.level) - parseLevelNum(a.level) || (b.points || 0) - (a.points || 0)),
+    [students, schoolFilter, gradeFilter, studentLevelFilter]);
 
-  // Calculate stats
-  const teacherStats = useMemo(() => ({
+  const visibleTeachers = showAllTeachers ? filteredTeachers : filteredTeachers.slice(0, PAGE_SIZE);
+  const visibleStudents = showAllStudents ? filteredStudents : filteredStudents.slice(0, PAGE_SIZE);
+
+  const tStats = useMemo(() => ({
     total: filteredTeachers.length,
-    avgPoints: filteredTeachers.length > 0 
-      ? Math.round(filteredTeachers.reduce((sum, t) => sum + (t.points || 0), 0) / filteredTeachers.length) 
-      : 0,
-    schoolsCount: new Set(filteredTeachers.map(t => t.schoolName)).size,
-    topTeacher: filteredTeachers[0],
+    avg: filteredTeachers.length ? Math.round(filteredTeachers.reduce((s, t) => s + (t.points || 0), 0) / filteredTeachers.length) : 0,
+    schools: new Set(filteredTeachers.map(t => t.schoolName)).size,
+    top: filteredTeachers[0],
   }), [filteredTeachers]);
 
-  const studentStats = useMemo(() => ({
+  const sStats = useMemo(() => ({
     total: filteredStudents.length,
-    avgPoints: filteredStudents.length > 0 
-      ? Math.round(filteredStudents.reduce((sum, s) => sum + (s.points || 0), 0) / filteredStudents.length) 
-      : 0,
-    schoolsCount: new Set(filteredStudents.map(s => s.schoolName)).size,
-    topStudent: filteredStudents[0],
+    avg: filteredStudents.length ? Math.round(filteredStudents.reduce((s, st) => s + (st.points || 0), 0) / filteredStudents.length) : 0,
+    schools: new Set(filteredStudents.map(s => s.schoolName)).size,
+    top: filteredStudents[0],
   }), [filteredStudents]);
 
-  // Level distribution
-  const levelDistribution = useMemo(() => {
-    const distribution = {};
+  const levelDist = useMemo(() => {
     const data = activeTab === "teachers" ? filteredTeachers : filteredStudents;
-    data.forEach(item => {
-      const level = item.level || 0;
-      distribution[level] = (distribution[level] || 0) + 1;
-    });
-    return Object.entries(distribution).map(([level, count]) => ({
-      name: level === "0" ? "المستوى صفر" : `المستوى ${level === "1" ? "الأول" : level === "2" ? "الثاني" : level}`,
-      value: count,
-    }));
+    const map = {};
+    data.forEach(d => { const l = d.level?.toString() || "—"; map[l] = (map[l] || 0) + 1; });
+    return Object.entries(map)
+      .map(([l, c]) => ({ name: l, num: parseLevelNum(l), value: c }))
+      .sort((a, b) => a.num - b.num);
   }, [activeTab, filteredTeachers, filteredStudents]);
 
-  // Calculate rating from points
-  const getRating = (points) => {
-    if (points >= 250) return 5;
-    if (points >= 150) return 4;
-    if (points >= 100) return 3;
-    if (points >= 50) return 2;
-    return 1;
-  };
+  const levelNames = { "0": "مستوى صفر", "1": "الأول", "2": "الثاني", "3": "الثالث", "4": "الرابع", "5": "الخامس", "6": "السادس", "7": "السابع" };
+  const uniqueLevels = useMemo(() =>
+    [...new Set(teachers.map(t => t.level?.toString()).filter(v => v != null && v !== ""))]
+      .sort((a, b) => parseLevelNum(a) - parseLevelNum(b)),
+    [teachers]);
 
-  if (isLoading) {
+  const uniqueStudentLevels = useMemo(() =>
+    [...new Set(students.map(s => s.level?.toString()).filter(v => v != null && v !== ""))]
+      .sort((a, b) => parseLevelNum(a) - parseLevelNum(b)),
+    [students]);
+
+  if (teacherLeaderboards === undefined || studentLeaderboards === undefined) {
     return (
       <AppLayout title="لوحات الصدارة">
         <div className="flex h-96 items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">جاري تحميل البيانات...</p>
-          </div>
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: MAROON }} />
         </div>
       </AppLayout>
     );
   }
 
+  /* ── عرض المستوى في الجدول ── */
+  const renderLevel = (lvl) => {
+    const n = parseLevelNum(lvl);
+    const raw = lvl?.toString() || "—";
+    const badge = getBadge(n);
+    return (
+      <div className="flex flex-col items-center gap-0.5 leading-tight">
+        <span className="rounded-md px-2 py-0.5 text-xs font-extrabold"
+          style={{
+            background: n >= 6 ? "#fef2f2" : "#f8fafc",
+            color: n >= 6 ? MAROON : "#64748b",
+            border: `1px solid ${n >= 6 ? "#fca5a5" : "#e2e8f0"}`
+          }}>
+          {raw}
+        </span>
+        {badge && (
+          <span className="text-[10px] font-semibold whitespace-nowrap"
+            style={{ color: badge.color }}>
+            {badge.emoji} {badge.label}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  /* ── فلتر مشترك ── */
+  const FilterBar = ({ showLevel = false, showStudentLevel = false, showGrade = false }) => (
+    <div className="rounded-xl border bg-white shadow-sm px-4 py-3"
+      style={{ borderRight: `4px solid ${MAROON}` }}>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <Filter className="h-4 w-4" style={{ color: MAROON }} />
+          <span className="text-sm font-semibold" style={{ color: MAROON }}>تصفية</span>
+        </div>
+        <Select value={schoolFilter} onValueChange={setSchoolFilter}>
+          <SelectTrigger className="h-8 w-44 text-sm border-slate-200 bg-white">
+            <SelectValue placeholder="المدرسة" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">جميع المدارس</SelectItem>
+            {schools.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {showLevel && (
+          <Select value={levelFilter} onValueChange={setLevelFilter}>
+            <SelectTrigger className="h-8 w-44 text-sm border-slate-200 bg-white">
+              <SelectValue placeholder="المستوى" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">جميع المستويات</SelectItem>
+              {uniqueLevels.map(l => {
+                const lnames2 = { "0": "صفر", "1": "الأول", "2": "الثاني", "3": "الثالث", "4": "الرابع", "5": "الخامس", "6": "السادس", "7": "السابع" };
+                return <SelectItem key={l} value={l}>{lnames2[l] ? `المستوى ${lnames2[l]}` : `مستوى ${l}`}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        )}
+        {showStudentLevel && (
+          <Select value={studentLevelFilter} onValueChange={setStudentLevelFilter}>
+            <SelectTrigger className="h-8 w-44 text-sm border-slate-200 bg-white">
+              <SelectValue placeholder="المستوى" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">جميع المستويات</SelectItem>
+              {uniqueStudentLevels.map(l => {
+                const lnames2 = { "0": "صفر", "1": "الأول", "2": "الثاني", "3": "الثالث", "4": "الرابع", "5": "الخامس", "6": "السادس", "7": "السابع" };
+                return <SelectItem key={l} value={l}>{lnames2[l] ? `المستوى ${lnames2[l]}` : `مستوى ${l}`}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        )}
+        {showGrade && (
+          <Select value={gradeFilter} onValueChange={setGradeFilter}>
+            <SelectTrigger className="h-8 w-36 text-sm border-slate-200 bg-white">
+              <SelectValue placeholder="الصف" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">جميع الصفوف</SelectItem>
+              {grades.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        <div className="mr-auto flex gap-1">
+          {["table", "chart"].map(m => (
+            <button key={m}
+              onClick={() => setViewMode(m)}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
+              style={viewMode === m
+                ? { background: MAROON, color: "#fff" }
+                : { background: "#f1f5f9", color: "#64748b" }}>
+              {m === "table" ? "جدول" : "رسم بياني"}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ── توزيع المستويات ── */
+  const LevelDist = () => levelDist.length === 0 ? null : (
+    <div className="rounded-xl border bg-white shadow-sm px-4 py-3 flex flex-wrap items-center gap-2"
+      style={{ borderRight: `4px solid #6366f1` }}>
+      <span className="text-sm font-semibold text-slate-600">توزيع المستويات:</span>
+      {levelDist.map((item, i) => {
+        const bdg = getBadge(item.num);
+        return (
+          <span key={i} className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border"
+            style={bdg
+              ? { background: bdg.bg, color: bdg.color, borderColor: bdg.border }
+              : { background: "#f1f5f9", color: "#475569", borderColor: "#e2e8f0" }}>
+            {bdg && bdg.emoji} {item.name}: <strong>{item.value}</strong>
+          </span>
+        );
+      })}
+    </div>
+  );
+
+  /* ── رأس الجدول ── */
+  const TH = ({ children, className = "" }) => (
+    <th className={`px-3 py-2.5 text-right text-xs font-bold text-white whitespace-nowrap ${className}`}
+      style={{ background: MAROON }}>
+      {children}
+    </th>
+  );
+  const TD = ({ children, className = "" }) => (
+    <td className={`px-3 py-2.5 text-right text-sm ${className}`}>{children}</td>
+  );
+
   return (
     <AppLayout title="لوحات الصدارة">
-      <div className="space-y-6">
-        {/* Page Title */}
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-foreground">لوحات الصدارة</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {activeTab === "teachers" ? "صدارة المعلمين" : "صدارة الطلاب"} - مرتب حسب النقاط تنازلياً
-          </p>
+      <div className="space-y-4 px-4 md:px-6" dir="rtl">
+
+        {/* العنوان */}
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl p-2.5" style={{ background: `${MAROON}18` }}>
+            <Trophy className="h-6 w-6" style={{ color: MAROON }} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800">لوحات الصدارة</h1>
+            <p className="text-sm text-slate-500">مرتب حسب النقاط تنازلياً</p>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="teachers" className="gap-2">
-              <Users className="h-4 w-4" />
-              صدارة المعلمين ({teachers.length})
-            </TabsTrigger>
-            <TabsTrigger value="students" className="gap-2">
-              <Trophy className="h-4 w-4" />
-              صدارة الطلاب ({students.length})
-            </TabsTrigger>
-          </TabsList>
+        {/* التبويبات */}
+        <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 w-fit shadow-sm">
+          {[
+            { val: "teachers", label: "صدارة المعلمين", count: teachers.length, icon: <Users className="h-4 w-4" /> },
+            { val: "students", label: "صدارة الطلاب", count: students.length, icon: <Trophy className="h-4 w-4" /> },
+          ].map(tab => (
+            <button key={tab.val} onClick={() => setActiveTab(tab.val)}
+              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all"
+              style={activeTab === tab.val
+                ? { background: MAROON, color: "#fff", boxShadow: "0 1px 4px rgba(127,29,29,0.25)" }
+                : { background: "transparent", color: "#64748b" }}>
+              {tab.icon}
+              {tab.label}
+              <span className="rounded-full px-1.5 text-xs"
+                style={{
+                  background: activeTab === tab.val ? "rgba(255,255,255,0.2)" : "#e2e8f0",
+                  color: activeTab === tab.val ? "#fff" : "#64748b"
+                }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
 
-          {/* Teachers Tab */}
-          <TabsContent value="teachers" className="space-y-6 mt-6">
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="إجمالي المعلمين"
-                value={teacherStats.total}
-                icon={Users}
-                variant="primary"
-              />
-              <StatCard
-                title="المدارس"
-                value={teacherStats.schoolsCount}
-                icon={School}
-                variant="success"
-              />
-              <StatCard
-                title="متوسط النقاط"
-                value={teacherStats.avgPoints}
-                icon={TrendingUp}
-                variant="info"
-              />
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-warning/10 p-3">
-                    <Trophy className="h-5 w-5 text-warning" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">أفضل معلم</p>
-                    <p className="font-semibold text-sm truncate">{teacherStats.topTeacher?.teacherName || "-"}</p>
-                    <p className="text-xs text-primary">{teacherStats.topTeacher?.points || 0} نقطة</p>
-                  </div>
-                </div>
-              </Card>
-            </div>
+        {/* محتوى التبويبات */}
+        <div className="space-y-4">
 
-            {/* Level Distribution */}
-            {levelDistribution.length > 0 && (
-              <Card>
-                <CardContent className="py-4">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm font-medium">توزيع المستويات:</span>
-                    {levelDistribution.map((item, idx) => (
-                      <Badge key={idx} variant="outline" className="gap-1">
-                        {item.name}: {item.value} معلم
-                      </Badge>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          {/* ── تبويب المعلمين ── */}
+          {activeTab === "teachers" && (
+            <div className="space-y-4">
+              {/* بطاقات */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:grid-cols-4">
+                <SCard label="إجمالي المعلمين" value={tStats.total} icon={Users} accent={MAROON} />
+                <SCard label="المدارس" value={tStats.schools} icon={School} accent="#1d4ed8" />
+                <SCard label="متوسط النقاط" value={tStats.avg} icon={TrendingUp} accent="#059669" />
+                <TopCard label="أفضل معلم" name={tStats.top?.teacherName} points={tStats.top?.points || 0} />
+              </div>
 
-            {/* Filters */}
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">تصفية:</span>
-                  </div>
-                  <Select value={schoolFilter} onValueChange={setSchoolFilter}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="المدرسة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">جميع المدارس</SelectItem>
-                      {schools.map(school => (
-                        <SelectItem key={school} value={school}>{school}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={levelFilter} onValueChange={setLevelFilter}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="المستوى" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">جميع المستويات</SelectItem>
-                      <SelectItem value="0">المستوى صفر</SelectItem>
-                      <SelectItem value="1">المستوى الأول</SelectItem>
-                      <SelectItem value="2">المستوى الثاني</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="mr-auto flex gap-2">
-                    <Button 
-                      variant={viewMode === "table" ? "default" : "outline"} 
-                      size="sm"
-                      onClick={() => setViewMode("table")}
-                    >
-                      جدول
-                    </Button>
-                    <Button 
-                      variant={viewMode === "chart" ? "default" : "outline"} 
-                      size="sm"
-                      onClick={() => setViewMode("chart")}
-                    >
-                      رسم بياني
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <LevelDist />
+              <FilterBar showLevel />
 
-            {/* Content based on view mode */}
-            {viewMode === "table" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>جدول صدارة المعلمين</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {filteredTeachers.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-right">الترتيب</TableHead>
-                          <TableHead className="text-right">اسم المعلم</TableHead>
-                          <TableHead className="text-right">المدرسة</TableHead>
-                          <TableHead className="text-right">اسم لوحة الصدارة</TableHead>
-                          <TableHead className="text-right">المستوى</TableHead>
-                          <TableHead className="text-right">النقاط</TableHead>
-                          <TableHead className="text-right">التقييم</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredTeachers.map((teacher, index) => (
-                          <TableRow key={teacher._id || index} className="hover:bg-muted/50">
-                            <TableCell>
-                              <RankBadge rank={index + 1} />
-                            </TableCell>
-                            <TableCell className="font-medium">{teacher.teacherName}</TableCell>
-                            <TableCell className="text-muted-foreground">{teacher.schoolName}</TableCell>
-                            <TableCell className="text-muted-foreground">{teacher.boardName}</TableCell>
-                            <TableCell>
-                              <LevelBadge level={teacher.level} />
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                                {teacher.points} نقطة
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <StarRating rating={getRating(teacher.points)} />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <EmptyState 
-                      title="لا توجد بيانات معلمين" 
-                      description="يرجى رفع ملف صدارة المعلمين أولاً"
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {viewMode === "chart" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>توزيع النقاط - أعلى 10 معلمين</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {filteredTeachers.length > 0 ? (
-                    <div className="h-96">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={filteredTeachers.slice(0, 10)} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" />
-                          <YAxis 
-                            dataKey="teacherName" 
-                            type="category" 
-                            width={180}
-                            tick={{ fontSize: 10 }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ direction: 'rtl', textAlign: 'right' }}
-                            formatter={(value) => [`${value} نقطة`, 'النقاط']}
-                          />
-                          <Bar dataKey="points" fill="hsl(345, 65%, 35%)" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
+              {/* الجدول أو الرسم */}
+              {viewMode === "table" ? (
+                <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-fixed border-collapse text-sm" dir="rtl">
+                      <colgroup>
+                        <col style={{ width: "5%" }} />
+                        <col style={{ width: "28%" }} />
+                        <col style={{ width: "22%" }} />
+                        <col style={{ width: "15%" }} />
+                        <col style={{ width: "13%" }} />
+                        <col style={{ width: "10%" }} />
+                        <col style={{ width: "7%" }} />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <TH className="text-center">#</TH>
+                          <TH>اسم المعلم</TH>
+                          <TH>المدرسة</TH>
+                          <TH className="text-center">المستوى</TH>
+                          <TH className="text-center">النقاط</TH>
+                          <TH className="text-center">التقييم</TH>
+                          <TH className="text-center">الصفحة</TH>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleTeachers.length > 0 ? visibleTeachers.map((t, i) => (
+                          <tr key={t._id || i}
+                            className="border-b border-slate-100 transition-colors"
+                            style={{ background: i === 0 ? "#fffbeb" : i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                            <TD><RankBadge rank={i + 1} /></TD>
+                            <TD className="font-semibold text-slate-800">{t.teacherName}</TD>
+                            <TD className="text-slate-500 text-xs max-w-[9rem] truncate" title={t.schoolName}>{t.schoolName}</TD>
+                            <TD className="text-center">{renderLevel(t.level)}</TD>
+                            <TD>
+                              <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+                                style={{ background: "#dcfce7", color: "#166534", border: "1px solid #86efac" }}>
+                                {Number(t.points || 0).toLocaleString("en-US")} نقطة
+                              </span>
+                            </TD>
+                            <TD><StarRating rating={getRating(t.points || 0)} /></TD>
+                            <TD>
+                              {t.teacherUrl
+                                ? <a href={t.teacherUrl} target="_blank" rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1 border transition-colors hover:bg-slate-50"
+                                  style={{ borderColor: MAROON_M, color: MAROON }}>
+                                  <ExternalLink className="h-3 w-3" /> عرض الصفحة
+                                </a>
+                                : <span className="text-xs text-slate-300">—</span>}
+                            </TD>
+                          </tr>
+                        )) : (
+                          <tr><td colSpan={7} className="py-12 text-center text-sm text-slate-400">لا توجد بيانات معلمين</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {filteredTeachers.length > PAGE_SIZE && (
+                    <div className="border-t border-slate-100 px-4 py-2 text-center">
+                      <button onClick={() => setShowAllTeachers(v => !v)}
+                        className="text-sm font-semibold transition-colors"
+                        style={{ color: MAROON }}>
+                        {showAllTeachers ? "عرض أقل ▲" : `عرض المزيد (${filteredTeachers.length - PAGE_SIZE} إضافي) ▼`}
+                      </button>
                     </div>
-                  ) : (
-                    <EmptyState title="لا توجد بيانات" />
                   )}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Students Tab */}
-          <TabsContent value="students" className="space-y-6 mt-6">
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="إجمالي الطلاب"
-                value={studentStats.total}
-                icon={Trophy}
-                variant="primary"
-              />
-              <StatCard
-                title="المدارس"
-                value={studentStats.schoolsCount}
-                icon={School}
-                variant="success"
-              />
-              <StatCard
-                title="متوسط النقاط"
-                value={studentStats.avgPoints}
-                icon={TrendingUp}
-                variant="info"
-              />
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-warning/10 p-3">
-                    <Trophy className="h-5 w-5 text-warning" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">أفضل طالب</p>
-                    <p className="font-semibold text-sm truncate">
-                      {studentStats.topStudent?.firstName} {studentStats.topStudent?.lastName || "-"}
-                    </p>
-                    <p className="text-xs text-primary">{studentStats.topStudent?.points || 0} نقطة</p>
-                  </div>
                 </div>
-              </Card>
+              ) : (
+                <div className="rounded-xl border bg-white shadow-sm p-4">
+                  <p className="text-sm font-bold text-slate-700 mb-3">توزيع النقاط — أعلى 10 معلمين</p>
+                  {filteredTeachers.length > 0 ? (
+                    <CSSBarChart
+                      data={filteredTeachers.slice(0, 10).map((t, i) => ({
+                        label: t.teacherName,
+                        value: Number(t.points || 0),
+                        color: CHART_COLORS[i % CHART_COLORS.length],
+                      }))}
+                      unit=" نقطة"
+                      maxRows={10}
+                    />
+                  ) : <EmptyState title="لا توجد بيانات" />}
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Filters */}
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">تصفية:</span>
-                  </div>
-                  <Select value={schoolFilter} onValueChange={setSchoolFilter}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="المدرسة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">جميع المدارس</SelectItem>
-                      {schools.map(school => (
-                        <SelectItem key={school} value={school}>{school}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={gradeFilter} onValueChange={setGradeFilter}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="الصف" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">جميع الصفوف</SelectItem>
-                      {grades.map(grade => (
-                        <SelectItem key={grade} value={grade}>{grade}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          {/* ── تبويب الطلاب ── */}
+          {activeTab === "students" && (
+            <div className="space-y-4">
+              {/* بطاقات */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:grid-cols-4">
+                <SCard label="إجمالي الطلاب" value={sStats.total} icon={Trophy} accent={MAROON} />
+                <SCard label="المدارس" value={sStats.schools} icon={School} accent="#1d4ed8" />
+                <SCard label="متوسط النقاط" value={sStats.avg} icon={TrendingUp} accent="#059669" />
+                <TopCard label="أفضل طالب"
+                  name={sStats.top ? (sStats.top.studentName || `${sStats.top.firstName ?? ""} ${sStats.top.lastName ?? ""}`.trim()) : null}
+                  points={sStats.top?.points || 0} />
+              </div>
+
+              <LevelDist />
+              <FilterBar showStudentLevel showGrade />
+
+              {/* جدول الطلاب */}
+              <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full table-fixed border-collapse text-sm" dir="rtl">
+                    <colgroup>
+                      <col style={{ width: "5%" }} />
+                      <col style={{ width: "25%" }} />
+                      <col style={{ width: "14%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "14%" }} />
+                      <col style={{ width: "14%" }} />
+                      <col style={{ width: "11%" }} />
+                      <col style={{ width: "7%" }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <TH className="text-center">#</TH>
+                        <TH>اسم الطالب</TH>
+                        <TH className="text-center">كود الطالب</TH>
+                        <TH className="text-center">الصف</TH>
+                        <TH className="text-center">النقاط</TH>
+                        <TH className="text-center">المستوى</TH>
+                        <TH>المدرسة</TH>
+                        <TH className="text-center">الصفحة</TH>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleStudents.length > 0 ? visibleStudents.map((s, i) => (
+                        <tr key={s._id || i}
+                          className="border-b border-slate-100 transition-colors"
+                          style={{ background: i === 0 ? "#fffbeb" : i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                          <TD><RankBadge rank={i + 1} /></TD>
+                          <TD className="font-semibold text-slate-800">
+                            {s.studentName || `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim()}
+                          </TD>
+                          <TD className="text-center text-slate-500 text-xs">{s.studentCode}</TD>
+                          <TD className="text-center text-slate-600 text-xs">{s.grade}</TD>
+                          <TD className="text-center">
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+                              style={{ background: "#dcfce7", color: "#166534", border: "1px solid #86efac" }}>
+                              {Number(s.points || 0).toLocaleString("en-US")} نقطة
+                            </span>
+                          </TD>
+                          <TD className="text-center">{renderLevel(s.level)}</TD>
+                          <TD className="text-slate-500 text-xs max-w-[9rem] truncate" title={s.schoolName}>{s.schoolName}</TD>
+                          <TD>
+                            {s.studentUrl
+                              ? <a href={s.studentUrl} target="_blank" rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1 border transition-colors hover:bg-slate-50"
+                                style={{ borderColor: MAROON_M, color: MAROON }}>
+                                <ExternalLink className="h-3 w-3" /> عرض الصفحة
+                              </a>
+                              : <span className="text-xs text-slate-300">—</span>}
+                          </TD>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan={8} className="py-12 text-center text-sm text-slate-400">لا توجد بيانات طلاب</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Students Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>جدول صدارة الطلاب</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {filteredStudents.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right">الترتيب</TableHead>
-                        <TableHead className="text-right">اسم الطالب</TableHead>
-                        <TableHead className="text-right">الصف</TableHead>
-                        <TableHead className="text-right">النقاط</TableHead>
-                        <TableHead className="text-right">المستوى</TableHead>
-                        <TableHead className="text-right">المدرسة</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredStudents.map((student, index) => (
-                        <TableRow key={student._id || index}>
-                          <TableCell>
-                            <RankBadge rank={index + 1} />
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {student.firstName} {student.lastName}
-                          </TableCell>
-                          <TableCell>{student.grade}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                              {student.points} نقطة
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <LevelBadge level={student.level} />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{student.schoolName}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <EmptyState 
-                    title="لا توجد بيانات طلاب"
-                    description="يرجى رفع ملف صدارة الطلاب أولاً"
-                  />
+                {filteredStudents.length > PAGE_SIZE && (
+                  <div className="border-t border-slate-100 px-4 py-2 text-center">
+                    <button onClick={() => setShowAllStudents(v => !v)}
+                      className="text-sm font-semibold transition-colors"
+                      style={{ color: MAROON }}>
+                      {showAllStudents ? "عرض أقل ▲" : `عرض المزيد (${filteredStudents.length - PAGE_SIZE} إضافي) ▼`}
+                    </button>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </AppLayout>
   );

@@ -6,3 +6,6 @@ export { default as UserActivityPage } from "./UserActivityPage";
 export { default as TeachersPerformancePage } from "./TeachersPerformancePage";
 export { default as StudentsPage } from "./StudentsPage";
 export { default as ComparisonsPage } from "./ComparisonsPage";
+
+export { default as TermSettingsPage } from "./TermSettingsPage";
+export { default as ReportsPage } from "./ReportsPage";

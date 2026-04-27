@@ -12,6 +12,18 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     direction: rtl;
+    overflow-x: hidden;
+}
+
+/* Responsive tables: allow horizontal scroll inside containers */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent content from breaking layout on small screens */
+* {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 code {
@@ -246,4 +258,21 @@ code {
 
 .animate-pulse-soft {
     animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* ─── إجبار الأرقام على الظهور بالإنجليزية في كل مكان بما فيه الطباعة ─── */
+* {
+    font-variant-numeric: normal;
+    -webkit-font-feature-settings: "tnum" 0;
+    font-feature-settings: "tnum" 0;
+}
+
+@media print {
+    * {
+        font-variant-numeric: normal !important;
+    }
+    /* منع الخطوط العربية من تحويل الأرقام */
+    body, * {
+        font-language-override: normal;
+    }
 }
