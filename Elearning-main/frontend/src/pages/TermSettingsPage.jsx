@@ -43,7 +43,7 @@ const TermSettingsPage = () => {
   const terms       = useQuery(api.terms.list)                                   || [];
   const subjects    = useQuery(api.subjectsQuota.list, { schoolId })             || [];
   const classTracks = useQuery(api.classTracks.list,   { schoolId })             || [];
-  const currentPassword = useQuery(api.settings.getSitePassword)                 || "123";
+  const currentPassword = useQuery(api.myFunctions.getSitePassword)              || "123";
 
   const upsertTerm        = useMutation(api.terms.upsert);
   const updateQuota       = useMutation(api.subjectsQuota.updateQuota);
@@ -59,7 +59,7 @@ const TermSettingsPage = () => {
   const saveTracksTemplate   = useMutation(api.classTracks.saveAsTemplate);
   const loadTracksTemplate   = useMutation(api.classTracks.loadFromTemplate);
   const tracksTemplateInfo   = useQuery(api.classTracks.getTemplateInfo);
-  const updatePassword       = useMutation(api.settings.updateSitePassword);
+  const updatePassword       = useMutation(api.myFunctions.updateSitePassword);
 
   const [newPasswordInput, setNewPasswordInput] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);

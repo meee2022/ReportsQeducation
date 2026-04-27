@@ -13,7 +13,7 @@ const PasswordGate = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Fetch password from Convex
-  const sitePassword = useQuery(api.settings.getSitePassword);
+  const sitePassword = useQuery(api.myFunctions.getSitePassword);
 
   useEffect(() => {
     const authStatus = localStorage.getItem("site_auth");
