@@ -2,6 +2,8 @@ import "@/index.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { ConvexClientProvider } from "@/lib/convex";
+import PasswordGate from "@/components/auth/PasswordGate";
+
 
 import {
   DashboardPage,
@@ -20,23 +22,25 @@ function App() {
   return (
     <ConvexClientProvider>
       <div dir="rtl">
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/upload" element={<UploadPage />} />
-            <Route path="/leaderboards" element={<LeaderboardsPage />} />
-            <Route path="/assessments" element={<AssessmentsPage />} />
-            <Route path="/user-activity" element={<UserActivityPage />} />
-            <Route
-              path="/teachers-performance"
-              element={<TeachersPerformancePage />}
-            />
-            <Route path="/students" element={<StudentsPage />} />
-            <Route path="/comparisons" element={<ComparisonsPage />} />
-            <Route path="/term-settings" element={<TermSettingsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-          </Routes>
-        </BrowserRouter>
+        <PasswordGate>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/upload" element={<UploadPage />} />
+              <Route path="/leaderboards" element={<LeaderboardsPage />} />
+              <Route path="/assessments" element={<AssessmentsPage />} />
+              <Route path="/user-activity" element={<UserActivityPage />} />
+              <Route
+                path="/teachers-performance"
+                element={<TeachersPerformancePage />}
+              />
+              <Route path="/students" element={<StudentsPage />} />
+              <Route path="/comparisons" element={<ComparisonsPage />} />
+              <Route path="/term-settings" element={<TermSettingsPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+            </Routes>
+          </BrowserRouter>
+        </PasswordGate>
         <Toaster position="top-center" dir="rtl" />
       </div>
     </ConvexClientProvider>
