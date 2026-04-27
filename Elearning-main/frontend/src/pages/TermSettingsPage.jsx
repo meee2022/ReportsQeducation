@@ -40,7 +40,7 @@ const TRACK_OPTIONS = ["علمي", "تكنولوجي", "أدبي", "عام"];
 const TermSettingsPage = () => {
   const { schoolId, schoolName, setSchool, clearSchool } = useCurrentSchool();
 
-  const terms       = useQuery(api.terms.list)                                   || [];
+  const terms       = useQuery(api.terms.list, { schoolId })                                   || [];
   const subjects    = useQuery(api.subjectsQuota.list, { schoolId })             || [];
   const classTracks = useQuery(api.classTracks.list,   { schoolId })             || [];
   const currentPassword = useQuery(api.myFunctions.getSitePassword)              || "123";
@@ -151,12 +151,19 @@ const TermSettingsPage = () => {
   };
 
   const handleSaveTerm = async (e) => {
+    e.preventDefault();
+    if (!schoolId) {
+      alert("يرجى تحديد كود المدرسة أولاً من تبويب 'إعدادات المدرسة'");
+      return;
+    }
     if (!name || !code || !startDate || !endDate) return;
     await upsertTerm({
       ...(editingTermId ? { id: editingTermId } : {}),
+      schoolId,
       name, code, startDate, endDate, active,
       schoolName: termSchoolName, principalName, viceNames, coordinatorName,
     });
+    alert("✓ تم حفظ الفصل بنجاح");
     setEditingTermId(null);
     setName(""); setCode(""); setStartDate(""); setEndDate(""); setActive(false);
     setTermSchoolName(""); setPrincipalName(""); setViceNames(""); setCoordinatorName("");
@@ -178,6 +185,7 @@ const TermSettingsPage = () => {
   const handleSetActive = async (term) => {
     await upsertTerm({
       id: term._id,
+      schoolId,
       name: term.name, code: term.code,
       startDate: term.startDate, endDate: term.endDate,
       active: true,
@@ -689,27 +697,29 @@ const TermSettingsPage = () => {
                     أنت تُعدّل فصلاً موجوداً — سيتم تحديث بياناته عند الحفظ.
                   </div>
                 )}
-                <form onSubmit={handleSaveTerm} className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  <div>
-                    <label className="block text-sm mb-1 text-right">اسم الفصل</label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="الفصل الثاني 2025–2026" className="text-right" />
+                <form onSubmit={handleSaveTerm} className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                      <label className="block text-sm mb-1 text-right">اسم الفصل</label>
+                      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="الفصل الثاني 2025–2026" className="text-right" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-right">الكود</label>
+                      <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="term2_2025_2026" className="text-right" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-right">تاريخ البداية</label>
+                      <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-right" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-right">تاريخ النهاية</label>
+                      <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-right" required />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm mt-2 flex-row-reverse justify-end">
+                      <span>اجعل هذا الفصل هو الحالي (active)</span>
+                      <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+                    </label>
                   </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-right">الكود</label>
-                    <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="term2_2025_2026" className="text-right" />
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-right">تاريخ البداية</label>
-                    <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-right" />
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 text-right">تاريخ النهاية</label>
-                    <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-right" />
-                  </div>
-                  <label className="flex items-center gap-2 text-sm mt-2 flex-row-reverse justify-end">
-                    <span>اجعل هذا الفصل هو الحالي (active)</span>
-                    <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-                  </label>
 
                   {/* ── بيانات المدرسة والإدارة ── */}
                   <div className="mt-4 border-t pt-4">

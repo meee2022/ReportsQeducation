@@ -77,7 +77,7 @@ const ReportsPage = () => {
   /* ─ بيانات ─ */
   const lessonsAgg = useQuery(api.lessonsAgg.list, { schoolId });
   const assessmentsAgg = useQuery(api.assessmentsAgg.list, { schoolId });
-  const termsData = useQuery(api.terms.getActive);
+  const termsData = useQuery(api.terms.getActive, { schoolId });
   const subjectsQuota = useQuery(api.subjectsQuota.list, { schoolId });
   const classTracks = useQuery(api.classTracks.list, { schoolId });
 
@@ -710,17 +710,31 @@ const ReportsPage = () => {
     }
   };
 
-  /* ── فتح Outlook بعد تنزيل PDF (عبر <a> click بدل window.location) ── */
-  const openOutlook = ({ subject = "", body = "" }) => {
-    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    setTimeout(() => {
-      const a = document.createElement("a");
-      a.href = mailtoLink;
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => document.body.removeChild(a), 500);
-    }, 600);
+  /* ── فتح Outlook بعد تنزيل PDF ── */
+  const openOutlook = ({ subject = "", body = "", to = "" }) => {
+    // نسخ النص للحافظة
+    navigator.clipboard.writeText(body).catch(() => {});
+    
+    // نص مختصر جداً للـ URL
+    const shortBody = `مرفق تقرير أداء. يرجى إرفاق ملف PDF من التنزيلات.`;
+    
+    // محاولة فتح Outlook Web
+    const outlookWebUrl = `https://outlook.live.com/mail/0/deeplink/compose?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(shortBody)}`;
+    
+    const win = window.open(outlookWebUrl, "_blank", "width=1200,height=800");
+    
+    // إذا لم يفتح، نستخدم mailto
+    if (!win || win.closed || typeof win.closed === "undefined") {
+      const mailtoLink = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(shortBody)}`;
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = mailtoLink;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => document.body.removeChild(a), 500);
+      }, 600);
+    }
   };
 
   /* ── إرسال بريد المعلم: ينزّل PDF ثم يفتح Outlook ── */
@@ -1017,15 +1031,13 @@ const ReportsPage = () => {
       </table>`;
   };
 
-  /* ── تحميل ZIP يحتوي تقارير كل معلمي القسم ── */
-  const downloadAllDeptReports = async () => {
+  /* ── تحميل كل تقارير القسم كملفات منفصلة ── */
+  const downloadAllDeptReportsSeparate = async () => {
     if (!selectedDept || !deptStats?.teachers?.length) return;
     setZipLoading(true);
     const teachers = deptStats.teachers;
-    setZipProgress({ current: 0, total: teachers.length });
-
-    const zip = new JSZip();
-    const folder = zip.folder(`تقارير_قسم_${selectedDept}`);
+    const from = termSettings.filterStart || termSettings.start || "بداية_الفصل";
+    const to = termSettings.filterEnd || termSettings.end || "نهاية_الفصل";
 
     for (let i = 0; i < teachers.length; i++) {
       const tc = teachers[i];
@@ -1034,22 +1046,28 @@ const ReportsPage = () => {
         const htmlContent = buildTeacherReportHTML(tc.teacherName);
         const pdfBuffer = await generatePDFBlobFromHTML(htmlContent);
         const safeName = tc.teacherName.replace(/[^\w\u0600-\u06FF]/g, "_");
-        folder.file(`${safeName}.pdf`, pdfBuffer);
+        const fileName = `${safeName}_${from}_${to}.pdf`;
+        
+        // إنشاء Blob وتحميل الملف
+        const blob = new Blob([pdfBuffer], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
+        
+        // انتظار قليلاً بين كل تحميل
+        await new Promise(r => setTimeout(r, 500));
       } catch (e) {
         console.error(`Error generating PDF for ${tc.teacherName}:`, e);
       }
     }
-
-    const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `تقارير_قسم_${selectedDept}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
+    
     setZipLoading(false);
     setZipProgress({ current: 0, total: 0 });
+    alert(`✓ تم تنزيل ${teachers.length} تقرير بنجاح`);
   };
 
   const handleTeacherEmail = async () => {
@@ -1063,9 +1081,12 @@ const ReportsPage = () => {
     setEmailLoading(false);
 
     const subject = `تقرير أداء معلّم – ${name} – الفترة من ${from} إلى ${to}`;
-    const body = `السلام عليكم،\n\nمرفق تقرير أداء المعلّم ${name} للفترة من ${from} إلى ${to}.\n\nتم تنزيل نسخة الـPDF على جهازك باسم:\n${fileName}.pdf\n\n** يرجى إرفاق الملف يدوياً مع هذه الرسالة إذا لم يتم إرفاقه تلقائياً **\n\nبناءً على بيانات لوحة متابعة التعليم.\n\nمع التحية.`;
+    const body = `السلام عليكم،\n\nمرفق تقرير أداء المعلّم ${name} للفترة من ${from} إلى ${to}.\n\nتم تنزيل نسخة الـPDF على جهازك باسم:\n${fileName}.pdf\n\n** يرجى إرفاق الملف يدوياً مع هذه الرسالة **\n\nلإرفاق الملف:\n1. انقر على زر "إرفاق" (📎) في Outlook\n2. اختر الملف من مجلد التنزيلات: ${fileName}.pdf\n\nبناءً على بيانات لوحة متابعة التعليم.\n\nمع التحية.`;
 
     openOutlook({ subject, body });
+    
+    // إظهار رسالة توضيحية
+    alert(`✓ تم تنزيل التقرير: ${fileName}.pdf\n\nتم فتح Outlook Web.\nيرجى إرفاق الملف يدوياً من مجلد التنزيلات.`);
   };
 
   /* ── إرسال بريد القسم: ينزّل PDF ثم يفتح Outlook ── */
@@ -1080,9 +1101,12 @@ const ReportsPage = () => {
     setEmailLoading(false);
 
     const subject = `تقرير أداء قسم – ${dept} – الفترة من ${from} إلى ${to}`;
-    const body = `السلام عليكم،\n\nمرفق تقرير أداء القسم ${dept} للفترة من ${from} إلى ${to}.\n\nتم تنزيل نسخة الـPDF على جهازك باسم:\n${fileName}.pdf\n\n** يرجى إرفاق الملف يدوياً مع هذه الرسالة إذا لم يتم إرفاقه تلقائياً **\n\nبناءً على بيانات لوحة متابعة التعليم.\n\nمع التحية.`;
+    const body = `السلام عليكم،\n\nمرفق تقرير أداء القسم ${dept} للفترة من ${from} إلى ${to}.\n\nتم تنزيل نسخة الـPDF على جهازك باسم:\n${fileName}.pdf\n\n** يرجى إرفاق الملف يدوياً مع هذه الرسالة **\n\nلإرفاق الملف:\n1. انقر على زر "إرفاق" (📎) في Outlook\n2. اختر الملف من مجلد التنزيلات: ${fileName}.pdf\n\nبناءً على بيانات لوحة متابعة التعليم.\n\nمع التحية.`;
 
     openOutlook({ subject, body });
+    
+    // إظهار رسالة توضيحية
+    alert(`✓ تم تنزيل التقرير: ${fileName}.pdf\n\nتم فتح Outlook Web.\nيرجى إرفاق الملف يدوياً من مجلد التنزيلات.`);
   };
 
   const isLoading = lessonsAgg === undefined || assessmentsAgg === undefined || subjectsQuota === undefined || classTracks === undefined;
@@ -1819,20 +1843,16 @@ const ReportsPage = () => {
                     >
                       <Printer className="h-4 w-4" /> طباعة موسعة (مع تفاصيل المعلمين)
                     </Button>
-                    <Button onClick={handleDeptEmail} disabled={emailLoading} variant="outline" className="gap-2" size="sm">
-                      {emailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                      {emailLoading ? "جاري توليد PDF..." : "إرسال بالبريد"}
-                    </Button>
                     <Button
-                      onClick={downloadAllDeptReports}
+                      onClick={downloadAllDeptReportsSeparate}
                       disabled={zipLoading}
                       variant="outline"
                       className="gap-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50"
                       size="sm"
                     >
                       {zipLoading
-                        ? <><Loader2 className="h-4 w-4 animate-spin" /> جاري التوليد... ({zipProgress.current}/{zipProgress.total})</>
-                        : <><Download className="h-4 w-4" /> تحميل تقارير المعلمين (ZIP)</>
+                        ? <><Loader2 className="h-4 w-4 animate-spin" /> جاري التحميل... ({zipProgress.current}/{zipProgress.total})</>
+                        : <><Download className="h-4 w-4" /> تحميل كل التقارير (PDF)</>
                       }
                     </Button>
                   </div>
