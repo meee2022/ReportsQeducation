@@ -141,4 +141,10 @@ export default defineSchema({
     viceNames: v.optional(v.string()),
     coordinatorName: v.optional(v.string()),
   }).index("by_schoolId", ["schoolId"]),
+
+  // إعدادات النظام العامة
+  settings: defineTable({
+    key: v.string(),
+    value: v.any(),
+  }).index("by_key", ["key"]),
 });

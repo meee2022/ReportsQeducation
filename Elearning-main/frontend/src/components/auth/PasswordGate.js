@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Lock, LogIn, AlertCircle } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -10,21 +12,32 @@ const PasswordGate = ({ children }) => {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // You can change the password here
-  const SITE_PASSWORD = "123"; 
+  // Fetch password from Convex
+  const sitePassword = useQuery(api.settings.getSitePassword);
 
   useEffect(() => {
     const authStatus = localStorage.getItem("site_auth");
-    if (authStatus === "true") {
+    const storedPass = localStorage.getItem("site_pass_val");
+
+    if (authStatus === "true" && sitePassword && storedPass === sitePassword) {
       setIsAuthenticated(true);
+    } else if (authStatus === "true" && sitePassword && storedPass !== sitePassword) {
+      // Password changed, require re-auth
+      localStorage.removeItem("site_auth");
+      localStorage.removeItem("site_pass_val");
+      setIsAuthenticated(false);
     }
-    setLoading(false);
-  }, []);
+    
+    if (sitePassword !== undefined) {
+      setLoading(false);
+    }
+  }, [sitePassword]);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === SITE_PASSWORD) {
+    if (password === sitePassword) {
       localStorage.setItem("site_auth", "true");
+      localStorage.setItem("site_pass_val", sitePassword);
       setIsAuthenticated(true);
       setError(false);
     } else {
@@ -33,7 +46,7 @@ const PasswordGate = ({ children }) => {
     }
   };
 
-  if (loading) return null;
+  if (loading || sitePassword === undefined) return null;
 
   if (isAuthenticated) {
     return children;

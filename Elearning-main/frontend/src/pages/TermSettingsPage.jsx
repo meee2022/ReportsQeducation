@@ -43,6 +43,7 @@ const TermSettingsPage = () => {
   const terms       = useQuery(api.terms.list)                                   || [];
   const subjects    = useQuery(api.subjectsQuota.list, { schoolId })             || [];
   const classTracks = useQuery(api.classTracks.list,   { schoolId })             || [];
+  const currentPassword = useQuery(api.settings.getSitePassword)                 || "123";
 
   const upsertTerm        = useMutation(api.terms.upsert);
   const updateQuota       = useMutation(api.subjectsQuota.updateQuota);
@@ -58,6 +59,10 @@ const TermSettingsPage = () => {
   const saveTracksTemplate   = useMutation(api.classTracks.saveAsTemplate);
   const loadTracksTemplate   = useMutation(api.classTracks.loadFromTemplate);
   const tracksTemplateInfo   = useQuery(api.classTracks.getTemplateInfo);
+  const updatePassword       = useMutation(api.settings.updateSitePassword);
+
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const [seedingTracks, setSeedingTracks] = useState(false);
 
@@ -207,6 +212,21 @@ const TermSettingsPage = () => {
     }
   };
 
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!newPasswordInput.trim()) return;
+    setIsChangingPassword(true);
+    try {
+      await updatePassword({ newPassword: newPasswordInput.trim() });
+      alert("✓ تم تغيير كلمة مرور الموقع بنجاح");
+      setNewPasswordInput("");
+    } catch (e) {
+      alert("خطأ في التغيير: " + e.message);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   // ── ضبط المدرسة ──
   const [inputSchoolId, setInputSchoolId]     = useState(schoolId || "");
   const [inputSchoolName, setInputSchoolName] = useState(schoolName || "");
@@ -252,6 +272,7 @@ const TermSettingsPage = () => {
             <TabsTrigger value="subjects">نصاب المواد</TabsTrigger>
             <TabsTrigger value="classtracks">مسارات الشعب</TabsTrigger>
             <TabsTrigger value="term">إعدادات الفصل الدراسي</TabsTrigger>
+            <TabsTrigger value="security">الأمان</TabsTrigger>
             <TabsTrigger value="reference">حسابات مرجعية</TabsTrigger>
           </TabsList>
 
@@ -763,6 +784,43 @@ const TermSettingsPage = () => {
                     </Table>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* ══════ تبويب الأمان ══════ */}
+          <TabsContent value="security" className="space-y-4" dir="rtl">
+            <Card>
+              <CardHeader>
+                <CardTitle>حماية الموقع</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="rounded border border-blue-200 bg-blue-50 p-4 text-right">
+                  <p className="text-sm font-semibold text-blue-800">كلمة المرور الحالية:</p>
+                  <p className="mt-1 text-lg font-bold tracking-widest">{currentPassword}</p>
+                </div>
+
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  <div className="max-w-md">
+                    <label className="block text-sm mb-2 text-right font-medium">تغيير كلمة المرور</label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        placeholder="كلمة المرور الجديدة"
+                        className="text-right"
+                        required
+                      />
+                      <Button type="submit" disabled={isChangingPassword}>
+                        {isChangingPassword ? "جارٍ الحفظ..." : "تحديث"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 text-right">
+                      * سيتم طلب كلمة المرور الجديدة من المستخدمين عند فتح الموقع مرة أخرى.
+                    </p>
+                  </div>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
