@@ -60,6 +60,8 @@ const TermSettingsPage = () => {
   const loadTracksTemplate   = useMutation(api.classTracks.loadFromTemplate);
   const tracksTemplateInfo   = useQuery(api.classTracks.getTemplateInfo);
   const updatePassword       = useMutation(api.myFunctions.updateSitePassword);
+  const portalLinks          = useQuery(api.myFunctions.getPortalLinks) || {};
+  const updatePortalLink     = useMutation(api.myFunctions.updatePortalLink);
 
   const [newPasswordInput, setNewPasswordInput] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -273,6 +275,7 @@ const TermSettingsPage = () => {
             <TabsTrigger value="classtracks">مسارات الشعب</TabsTrigger>
             <TabsTrigger value="term">إعدادات الفصل الدراسي</TabsTrigger>
             <TabsTrigger value="security">الأمان</TabsTrigger>
+            <TabsTrigger value="links">روابط التحميل</TabsTrigger>
             <TabsTrigger value="reference">حسابات مرجعية</TabsTrigger>
           </TabsList>
 
@@ -821,6 +824,46 @@ const TermSettingsPage = () => {
                     </p>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ══════ تبويب روابط التحميل ══════ */}
+          <TabsContent value="links" className="space-y-4" dir="rtl">
+            <Card>
+              <CardHeader>
+                <CardTitle>تحديث روابط التحميل من البوابة</CardTitle>
+                <p className="text-sm text-muted-foreground text-right">
+                  هذه الروابط تظهر في صفحة رفع الملفات لمساعدة المستخدمين على الوصول للتقارير الصحيحة.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { id: "lessons", label: "ملف دروس المواد" },
+                  { id: "assessments", label: "ملف تقييمات المواد" },
+                  { id: "studentLeaderboard", label: "ملف صدارة الطلاب" },
+                  { id: "teacherLeaderboard", label: "ملف صدارة المعلمين" },
+                  { id: "userActivity", label: "ملف نشاط المستخدمين" },
+                  { id: "studentInteractions", label: "ملف تفاعل الطلاب التفصيلي" },
+                ].map((item) => (
+                  <div key={item.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center border-b pb-3 last:border-0">
+                    <span className="text-sm font-medium text-right md:col-span-1">{item.label}</span>
+                    <Input
+                      className="md:col-span-2 text-left ltr h-9"
+                      defaultValue={portalLinks[item.id] || ""}
+                      onBlur={async (e) => {
+                        const url = e.target.value.trim();
+                        if (url !== (portalLinks[item.id] || "")) {
+                          await updatePortalLink({ configId: item.id, url });
+                        }
+                      }}
+                      placeholder="https://qeducation.edu.gov.qa/..."
+                    />
+                    <div className="text-xs text-muted-foreground text-right md:col-span-1">
+                      {portalLinks[item.id] ? "✓ تم الحفظ" : "لم يتم ضبط الرابط"}
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>

@@ -1,6 +1,6 @@
 // هذه الصفحة ترفع البيانات مرتبطة بالمدرسة الحالية بناءً على currentSchoolId
 import React, { useState, useCallback } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useCurrentSchool } from "@/utils/useCurrentSchool";
 import {
   Upload,
@@ -32,7 +32,6 @@ const uploadConfigs = [
     description: "ملف يحتوي على بيانات الدروس المجمعة لكل مادة",
     mutationName: "uploads:uploadLessonsCsv",
     icon: "📚",
-    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11872",
   },
   {
     id: "assessments",
@@ -41,7 +40,6 @@ const uploadConfigs = [
     description: "ملف يحتوي على بيانات التقييمات المجمعة",
     mutationName: "uploads:uploadAssessmentsCsv",
     icon: "📝",
-    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11873", // Placeholder, user can update
   },
   {
     id: "studentLeaderboard",
@@ -50,7 +48,6 @@ const uploadConfigs = [
     description: "ملف يحتوي على ترتيب الطلاب في لوحة الصدارة",
     mutationName: "uploads:uploadStudentLeaderboardCsv",
     icon: "🏆",
-    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11875", // Placeholder
   },
   {
     id: "teacherLeaderboard",
@@ -59,7 +56,6 @@ const uploadConfigs = [
     description: "ملف يحتوي على ترتيب المعلمين في لوحة الصدارة",
     mutationName: "uploads:uploadTeacherLeaderboardCsv",
     icon: "👨‍🏫",
-    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11876", // Placeholder
   },
   {
     id: "userActivity",
@@ -68,7 +64,6 @@ const uploadConfigs = [
     description: "ملف يحتوي على بيانات نشاط المستخدمين",
     mutationName: "uploads:uploadUserActivityCsv",
     icon: "📊",
-    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11877", // Placeholder
   },
   {
     id: "studentInteractions",
@@ -78,7 +73,6 @@ const uploadConfigs = [
     mutationName: "uploads:uploadStudentInteractionsBatch",
     batchMode: true,
     icon: "💬",
-    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11878", // Placeholder
   },
   {
     id: "subjectsQuota",
@@ -99,7 +93,7 @@ const uploadConfigs = [
   },
 ];
 
-const FileUploadCard = ({ config, onUploadComplete, schoolId }) => {
+const FileUploadCard = ({ config, onUploadComplete, schoolId, portalUrl }) => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); // "success" | "error"
@@ -276,9 +270,9 @@ const FileUploadCard = ({ config, onUploadComplete, schoolId }) => {
             <p className="mt-2 text-xs text-muted-foreground">
               {config.description}
             </p>
-            {config.portalUrl && (
+            {portalUrl && (
               <a
-                href={config.portalUrl}
+                href={portalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
@@ -385,6 +379,7 @@ const UploadPage = () => {
   const { schoolId } = useCurrentSchool();
   const clearLegacy = useMutation(api.uploads.clearLegacyData);
   const clearAllData = useMutation(api.uploads.clearAllSchoolData);
+  const portalLinks = useQuery(api.myFunctions.getPortalLinks) || {};
 
   const handleClearLegacy = async () => {
     if (!window.confirm("هل تريد مسح جميع البيانات القديمة (غير المرتبطة بمدرسة)؟")) return;
@@ -520,6 +515,7 @@ const UploadPage = () => {
               config={config}
               onUploadComplete={handleUploadComplete}
               schoolId={schoolId}
+              portalUrl={portalLinks[config.id]}
             />
           ))}
         </div>
