@@ -46,7 +46,7 @@ export const Sidebar = ({ open, onClose }) => {
         <div className="flex h-16 items-center justify-between border-b px-4 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <img
-              src="https://customer-assets.emergentagent.com/job_school-rtl-metrics/artifacts/2g24g7mf_image.png"
+              src="/logo.png"
               alt="شعار"
               className="h-10 w-10 flex-shrink-0 object-contain"
             />
