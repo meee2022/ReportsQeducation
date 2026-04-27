@@ -8,6 +8,7 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout";
 import {
@@ -31,6 +32,7 @@ const uploadConfigs = [
     description: "ملف يحتوي على بيانات الدروس المجمعة لكل مادة",
     mutationName: "uploads:uploadLessonsCsv",
     icon: "📚",
+    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11872",
   },
   {
     id: "assessments",
@@ -39,6 +41,7 @@ const uploadConfigs = [
     description: "ملف يحتوي على بيانات التقييمات المجمعة",
     mutationName: "uploads:uploadAssessmentsCsv",
     icon: "📝",
+    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11873", // Placeholder, user can update
   },
   {
     id: "studentLeaderboard",
@@ -47,6 +50,7 @@ const uploadConfigs = [
     description: "ملف يحتوي على ترتيب الطلاب في لوحة الصدارة",
     mutationName: "uploads:uploadStudentLeaderboardCsv",
     icon: "🏆",
+    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11875", // Placeholder
   },
   {
     id: "teacherLeaderboard",
@@ -55,6 +59,7 @@ const uploadConfigs = [
     description: "ملف يحتوي على ترتيب المعلمين في لوحة الصدارة",
     mutationName: "uploads:uploadTeacherLeaderboardCsv",
     icon: "👨‍🏫",
+    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11876", // Placeholder
   },
   {
     id: "userActivity",
@@ -63,6 +68,7 @@ const uploadConfigs = [
     description: "ملف يحتوي على بيانات نشاط المستخدمين",
     mutationName: "uploads:uploadUserActivityCsv",
     icon: "📊",
+    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11877", // Placeholder
   },
   {
     id: "studentInteractions",
@@ -72,6 +78,7 @@ const uploadConfigs = [
     mutationName: "uploads:uploadStudentInteractionsBatch",
     batchMode: true,
     icon: "💬",
+    portalUrl: "https://qeducation.edu.gov.qa/custom_report/show/11878", // Placeholder
   },
   {
     id: "subjectsQuota",
@@ -269,6 +276,17 @@ const FileUploadCard = ({ config, onUploadComplete, schoolId }) => {
             <p className="mt-2 text-xs text-muted-foreground">
               {config.description}
             </p>
+            {config.portalUrl && (
+              <a
+                href={config.portalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                تحميل الملف من بوابة قطر للتعليم
+              </a>
+            )}
           </div>
         </div>
       </CardHeader>
