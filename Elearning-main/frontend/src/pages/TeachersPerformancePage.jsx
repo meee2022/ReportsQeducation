@@ -572,7 +572,7 @@ const TeachersPerformancePage = () => {
         // 3) حسب إجمالي الدروس (desc)
         return Number(b.totalLessons || 0) - Number(a.totalLessons || 0);
       });
-  }, [filteredLessons, effectiveWeeks, trackIndex, getWeeklyQuota]);
+  }, [filteredLessons, effectiveWeeks, regularWeeks, ramadanWeeks, trackIndex, getWeeklyQuota]);
 
   const visibleTeachers = showAll
     ? teachersData
