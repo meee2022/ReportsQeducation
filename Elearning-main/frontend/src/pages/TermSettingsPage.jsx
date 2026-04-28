@@ -62,6 +62,11 @@ const TermSettingsPage = () => {
   const updatePassword       = useMutation(api.myFunctions.updateSitePassword);
   const portalLinks          = useQuery(api.myFunctions.getPortalLinks) || {};
   const updatePortalLink     = useMutation(api.myFunctions.updatePortalLink);
+  
+  // ── إجازات وتوقفات ──
+  const breaksList           = useQuery(api.schoolBreaks.list, { schoolId }) || [];
+  const addBreak             = useMutation(api.schoolBreaks.add);
+  const removeBreak          = useMutation(api.schoolBreaks.remove);
 
   const [newPasswordInput, setNewPasswordInput] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -81,6 +86,8 @@ const TermSettingsPage = () => {
   const [principalName, setPrincipalName]         = useState("");
   const [viceNames, setViceNames]                 = useState("");
   const [coordinatorName, setCoordinatorName]     = useState("");
+  const [ramadanStart, setRamadanStart]           = useState("");
+  const [ramadanEnd, setRamadanEnd]               = useState("");
 
   // نموذج إضافة مادة جديدة
   const [newStage, setNewStage]     = useState("");
@@ -88,6 +95,7 @@ const TermSettingsPage = () => {
   const [newGrade, setNewGrade]     = useState("");
   const [newSubject, setNewSubject] = useState("");
   const [newQuota, setNewQuota]     = useState(0);
+  const [newRamadanQuota, setNewRamadanQuota] = useState(0);
 
   // فلاتر نصاب المواد
   const [stageFilter, setStageFilter] = useState("all");
@@ -99,6 +107,13 @@ const TermSettingsPage = () => {
   const [ctClassName, setCtClassName] = useState("");
   const [ctTrack, setCtTrack]         = useState("");
   const [ctGradeFilter, setCtGradeFilter] = useState("all");
+  
+  // نموذج إضافة إجازة/توقف
+  const [breakName, setBreakName]         = useState("");
+  const [breakStart, setBreakStart]       = useState("");
+  const [breakEnd, setBreakEnd]           = useState("");
+  const [breakType, setBreakType]         = useState("holiday");
+  const [breakNotes, setBreakNotes]       = useState("");
 
   const handleSaveTracksTemplate = async () => {
     if (!schoolId) { alert("يرجى تحديد كود المدرسة أولاً"); return; }
@@ -162,11 +177,13 @@ const TermSettingsPage = () => {
       schoolId,
       name, code, startDate, endDate, active,
       schoolName: termSchoolName, principalName, viceNames, coordinatorName,
+      ramadanStart, ramadanEnd,
     });
     alert("✓ تم حفظ الفصل بنجاح");
     setEditingTermId(null);
     setName(""); setCode(""); setStartDate(""); setEndDate(""); setActive(false);
     setTermSchoolName(""); setPrincipalName(""); setViceNames(""); setCoordinatorName("");
+    setRamadanStart(""); setRamadanEnd("");
   };
 
   const handleEditTerm = (t) => {
@@ -180,6 +197,8 @@ const TermSettingsPage = () => {
     setPrincipalName(t.principalName || "");
     setViceNames(t.viceNames        || "");
     setCoordinatorName(t.coordinatorName || "");
+    setRamadanStart(t.ramadanStart || "");
+    setRamadanEnd(t.ramadanEnd     || "");
   };
 
   const handleSetActive = async (term) => {
@@ -199,13 +218,37 @@ const TermSettingsPage = () => {
   const handleAddSubject = async (e) => {
     e.preventDefault();
     if (!newStage || !newTrack || !newGrade || !newSubject) return;
-    await addSubject({ stage: newStage, track: newTrack, grade: newGrade, subjectName: newSubject, weeklyQuota: newQuota });
-    setNewStage(""); setNewTrack(""); setNewGrade(""); setNewSubject(""); setNewQuota(0);
+    await addSubject({ 
+      stage: newStage, track: newTrack, grade: newGrade, subjectName: newSubject, 
+      weeklyQuota: newQuota,
+      ramadanQuota: newRamadanQuota > 0 ? newRamadanQuota : undefined
+    });
+    setNewStage(""); setNewTrack(""); setNewGrade(""); setNewSubject(""); setNewQuota(0); setNewRamadanQuota(0);
   };
 
   const handleDeleteSubject = async (id) => {
     if (confirm("هل أنت متأكد من حذف هذه المادة؟")) {
       await deleteSubject({ id });
+    }
+  };
+
+  const handleAddBreak = async (e) => {
+    e.preventDefault();
+    if (!breakName || !breakStart || !breakEnd) return;
+    await addBreak({
+      schoolId,
+      name: breakName,
+      startDate: breakStart,
+      endDate: breakEnd,
+      type: breakType,
+      notes: breakNotes,
+    });
+    setBreakName(""); setBreakStart(""); setBreakEnd(""); setBreakType("holiday"); setBreakNotes("");
+  };
+
+  const handleRemoveBreak = async (id) => {
+    if (confirm("هل أنت متأكد من حذف هذه الإجازة؟")) {
+      await removeBreak({ id });
     }
   };
 
@@ -282,6 +325,7 @@ const TermSettingsPage = () => {
             <TabsTrigger value="subjects">نصاب المواد</TabsTrigger>
             <TabsTrigger value="classtracks">مسارات الشعب</TabsTrigger>
             <TabsTrigger value="term">إعدادات الفصل الدراسي</TabsTrigger>
+            <TabsTrigger value="breaks">📅 الإجازات والتوقفات</TabsTrigger>
             <TabsTrigger value="security">الأمان</TabsTrigger>
             <TabsTrigger value="links">روابط التحميل</TabsTrigger>
             <TabsTrigger value="reference">حسابات مرجعية</TabsTrigger>
@@ -443,6 +487,10 @@ const TermSettingsPage = () => {
                         <label className="block text-sm mb-1 text-right">النصاب الأسبوعي</label>
                         <Input type="number" min={0} value={newQuota} onChange={(e) => setNewQuota(Number(e.target.value))} className="text-center h-9" required />
                       </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-right">نصاب رمضان 🌙</label>
+                        <Input type="number" min={0} value={newRamadanQuota} onChange={(e) => setNewRamadanQuota(Number(e.target.value))} className="text-center h-9" placeholder="اختياري" />
+                      </div>
                       <div className="flex items-end">
                         <Button type="submit" className="w-full h-9">إضافة</Button>
                       </div>
@@ -462,6 +510,7 @@ const TermSettingsPage = () => {
                           المادة <span className="text-xs text-muted-foreground mr-1">(قابل للتعديل)</span>
                         </TableHead>
                         <TableHead className="text-right">النصاب الأسبوعي</TableHead>
+                        <TableHead className="text-right">نصاب رمضان 🌙</TableHead>
                         <TableHead className="text-right">إجراءات</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -496,6 +545,23 @@ const TermSettingsPage = () => {
                                   await updateQuota({ id: row._id, weeklyQuota: value });
                                 }}
                                 className="h-8 w-20 text-center"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="w-32">
+                            <div className="flex items-center gap-2 justify-end flex-row-reverse">
+                              <span className="text-xs text-muted-foreground">🌙</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                defaultValue={row.ramadanQuota || ""}
+                                onBlur={async (e) => {
+                                  const value = e.target.value ? Number(e.target.value) : undefined;
+                                  if (value === row.ramadanQuota) return;
+                                  await updateQuota({ id: row._id, ramadanQuota: value });
+                                }}
+                                className="h-8 w-20 text-center"
+                                placeholder="-"
                               />
                             </div>
                           </TableCell>
@@ -744,6 +810,24 @@ const TermSettingsPage = () => {
                     </div>
                   </div>
 
+                  {/* ── تواريخ رمضان (اختياري) ── */}
+                  <div className="mt-4 border-t pt-4">
+                    <p className="text-sm font-semibold text-right mb-3 text-primary">🌙 إعدادات رمضان (اختياري)</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm mb-1 text-right">بداية رمضان</label>
+                        <Input type="date" value={ramadanStart} onChange={e => setRamadanStart(e.target.value)} className="text-right" />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-right">نهاية رمضان</label>
+                        <Input type="date" value={ramadanEnd} onChange={e => setRamadanEnd(e.target.value)} className="text-right" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 text-right">
+                      إذا حددت تواريخ رمضان، سيستخدم النظام نصاب رمضان المحدد في نصاب المواد خلال هذه الفترة.
+                    </p>
+                  </div>
+
                   <div className="mt-4">
                     <Button type="submit">{editingTermId ? "تحديث الفصل" : "حفظ"}</Button>
                   </div>
@@ -874,6 +958,157 @@ const TermSettingsPage = () => {
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ══════ تبويب الإجازات والتوقفات ══════ */}
+          <TabsContent value="breaks" className="space-y-4" dir="rtl">
+            <Card>
+              <CardHeader>
+                <CardTitle>📅 إجازات وتوقفات الدراسة</CardTitle>
+                <p className="text-sm text-muted-foreground text-right">
+                  أضف الإجازات والتوقفات (حرب، كوارث، إجازات رسمية) لحساب الأسابيع الفعلية للدراسة بدقة.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* نموذج إضافة إجازة */}
+                <Card className="bg-muted/20">
+                  <CardHeader>
+                    <CardTitle className="text-base">إضافة إجازة / توقف جديد</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleAddBreak} className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <label className="block text-sm mb-1 text-right">اسم الحدث</label>
+                        <Input 
+                          value={breakName} 
+                          onChange={(e) => setBreakName(e.target.value)} 
+                          placeholder="إجازة منتصف الفصل / حرب / كارثة..." 
+                          className="text-right h-9" 
+                          required 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-right">تاريخ البداية</label>
+                        <Input 
+                          type="date" 
+                          value={breakStart} 
+                          onChange={(e) => setBreakStart(e.target.value)} 
+                          className="text-right h-9" 
+                          required 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-right">تاريخ النهاية</label>
+                        <Input 
+                          type="date" 
+                          value={breakEnd} 
+                          onChange={(e) => setBreakEnd(e.target.value)} 
+                          className="text-right h-9" 
+                          required 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-1 text-right">النوع</label>
+                        <Select value={breakType} onValueChange={setBreakType}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="holiday">🎉 إجازة رسمية</SelectItem>
+                            <SelectItem value="emergency">⚠️ توقف طارئ</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="md:col-span-2 lg:col-span-3">
+                        <label className="block text-sm mb-1 text-right">ملاحظات (اختياري)</label>
+                        <Input 
+                          value={breakNotes} 
+                          onChange={(e) => setBreakNotes(e.target.value)} 
+                          placeholder="تفاصيل إضافية..." 
+                          className="text-right h-9" 
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button type="submit" className="w-full h-9">إضافة</Button>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* جدول الإجازات */}
+                <div className="overflow-x-auto rounded border bg-card mt-2" dir="rtl">
+                  <Table className="text-sm">
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead className="text-right">#</TableHead>
+                        <TableHead className="text-right">الحدث</TableHead>
+                        <TableHead className="text-right">من</TableHead>
+                        <TableHead className="text-right">إلى</TableHead>
+                        <TableHead className="text-right">عدد الأيام</TableHead>
+                        <TableHead className="text-right">النوع</TableHead>
+                        <TableHead className="text-right">ملاحظات</TableHead>
+                        <TableHead className="text-right">إجراءات</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {breaksList.map((b, i) => {
+                        const days = Math.ceil((new Date(b.endDate) - new Date(b.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+                        return (
+                          <TableRow key={b._id}>
+                            <TableCell className="text-center">{i + 1}</TableCell>
+                            <TableCell className="text-right font-medium">{b.name}</TableCell>
+                            <TableCell className="text-right">{b.startDate}</TableCell>
+                            <TableCell className="text-right">{b.endDate}</TableCell>
+                            <TableCell className="text-center">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-bold">
+                                {days} يوم
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {b.type === "holiday" ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-green-50 text-green-700 text-xs">
+                                  🎉 إجازة
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 text-red-700 text-xs">
+                                  ⚠️ طارئ
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground text-xs">{b.notes || "—"}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="destructive" size="sm" onClick={() => handleRemoveBreak(b._id)}>
+                                <Trash2 className="h-4 w-4 ml-1" />
+                                حذف
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {breaksList.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                            لا توجد إجازات مسجلة
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* ملخص */}
+                {breaksList.length > 0 && (
+                  <div className="rounded bg-amber-50 border border-amber-200 p-4 text-right">
+                    <p className="text-sm font-semibold text-amber-800">
+                      📊 إجمالي أيام التوقف: {breaksList.reduce((sum, b) => sum + Math.ceil((new Date(b.endDate) - new Date(b.startDate)) / (1000 * 60 * 60 * 24)) + 1, 0)} يوم
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      سيتم خصم هذه الأيام من حساب الأسابيع الدراسية الفعلية في التقارير.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -118,6 +118,7 @@ export default defineSchema({
     grade: v.string(),
     subjectName: v.string(),
     weeklyQuota: v.number(),
+    ramadanQuota: v.optional(v.number()), // نصاب رمضان (اختياري)
   }).index("by_schoolId", ["schoolId"]),
 
   // مسارات الشعب (class_tracks.csv)
@@ -140,6 +141,19 @@ export default defineSchema({
     principalName: v.optional(v.string()),
     viceNames: v.optional(v.string()),
     coordinatorName: v.optional(v.string()),
+    // تواريخ رمضان (اختياري)
+    ramadanStart: v.optional(v.string()),
+    ramadanEnd: v.optional(v.string()),
+  }).index("by_schoolId", ["schoolId"]),
+
+  // إجازات وتوقفات الدراسة (لحساب الأسابيع الفعلية بدقة)
+  schoolBreaks: defineTable({
+    schoolId: v.optional(v.string()),
+    name: v.string(), // اسم الحدث: إجازة منتصف الفصل، حرب، كارثة...
+    startDate: v.string(), // YYYY-MM-DD
+    endDate: v.string(), // YYYY-MM-DD
+    type: v.union(v.literal("holiday"), v.literal("emergency")), // holiday=إجازة رسمية, emergency=توقف طارئ
+    notes: v.optional(v.string()),
   }).index("by_schoolId", ["schoolId"]),
 
   // إعدادات النظام العامة

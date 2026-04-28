@@ -40,6 +40,8 @@ export const upsert = mutation({
     principalName: v.optional(v.string()),
     viceNames: v.optional(v.string()),
     coordinatorName: v.optional(v.string()),
+    ramadanStart: v.optional(v.string()),
+    ramadanEnd: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const data = {
@@ -53,6 +55,8 @@ export const upsert = mutation({
       principalName: args.principalName ?? "",
       viceNames: args.viceNames ?? "",
       coordinatorName: args.coordinatorName ?? "",
+      ramadanStart: args.ramadanStart,
+      ramadanEnd: args.ramadanEnd,
     };
     if (args.id) {
       await ctx.db.patch(args.id, data);

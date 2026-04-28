@@ -60,10 +60,14 @@ export const list = query({
 export const updateQuota = mutation({
   args: {
     id: v.id("subjectsQuota"),
-    weeklyQuota: v.number(),
+    weeklyQuota: v.optional(v.number()),
+    ramadanQuota: v.optional(v.number()),
   },
-  handler: async (ctx, { id, weeklyQuota }) => {
-    await ctx.db.patch(id, { weeklyQuota });
+  handler: async (ctx, { id, weeklyQuota, ramadanQuota }) => {
+    const data: any = {};
+    if (weeklyQuota !== undefined) data.weeklyQuota = weeklyQuota;
+    if (ramadanQuota !== undefined) data.ramadanQuota = ramadanQuota;
+    await ctx.db.patch(id, data);
   },
 });
 
@@ -85,6 +89,7 @@ export const addSubject = mutation({
     grade: v.string(),
     subjectName: v.string(),
     weeklyQuota: v.number(),
+    ramadanQuota: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("subjectsQuota", {
@@ -94,6 +99,7 @@ export const addSubject = mutation({
       grade: args.grade,
       subjectName: args.subjectName,
       weeklyQuota: args.weeklyQuota,
+      ramadanQuota: args.ramadanQuota,
     });
   },
 });
