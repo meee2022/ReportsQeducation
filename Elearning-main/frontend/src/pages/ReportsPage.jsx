@@ -317,7 +317,7 @@ const ReportsPage = () => {
       solveRate,
       correctionRate,
     };
-  }, [teacherLessons, teacherAssessments, termSettings, trackIndex, getWeeklyQuota, calcRequired]);
+  }, [teacherLessons, teacherAssessments, trackIndex, getWeeklyQuota, calcRequired]);
 
   /* ─ بيانات الأقسام (مجمّعة حسب اسم المادة) ─ */
   const departments = useMemo(() => {
@@ -368,7 +368,7 @@ const ReportsPage = () => {
     totals.completion = totals.required > 0 ? Math.min(100, (totals.visible / totals.required) * 100) : 0;
     totals.outcomesRatio = totals.total > 0 ? Math.min(100, (totals.outcomes / totals.total) * 100) : 0;
     return { teachers, totals, subjectName: selectedDept };
-  }, [lessonsAgg, selectedDept, termSettings, trackIndex, getWeeklyQuota, calcRequired]);
+  }, [lessonsAgg, selectedDept, trackIndex, getWeeklyQuota, calcRequired]);
 
   /* ─ ملخص كل الأقسام (للنظرة الشاملة) ─ */
   const allDeptStats = useMemo(() => {
@@ -406,7 +406,7 @@ const ReportsPage = () => {
         corrRate,
       };
     }).sort((a, b) => a.subjectName.localeCompare(b.subjectName, "ar"));
-  }, [lessonsAgg, assessmentsAgg, termSettings, trackIndex, getWeeklyQuota, calcRequired]);
+  }, [lessonsAgg, assessmentsAgg, trackIndex, getWeeklyQuota, calcRequired]);
 
   /* ─ ملخص كل الصفوف (للنظرة الشاملة) ─ */
   const allGradeStats = useMemo(() => {
@@ -436,7 +436,7 @@ const ReportsPage = () => {
       if (ga !== gb) return ga - gb;
       return String(a.section || "").localeCompare(String(b.section || ""), "ar");
     });
-  }, [lessonsAgg, assessmentsAgg, termSettings, trackIndex, getWeeklyQuota, calcRequired]);
+  }, [lessonsAgg, assessmentsAgg, trackIndex, getWeeklyQuota, calcRequired]);
 
   /* ─ طباعة ─ */
   const handlePrint = () => {
