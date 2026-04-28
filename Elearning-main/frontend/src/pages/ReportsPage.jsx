@@ -1,5 +1,5 @@
 // هذه الصفحة تعرض بيانات المدرسة الحالية فقط بناءً على currentSchoolId
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { usePersistentDateFilter } from "@/utils/usePersistentDateFilter";
@@ -80,6 +80,8 @@ const ReportsPage = () => {
   const termsData = useQuery(api.terms.getActive, { schoolId });
   const subjectsQuota = useQuery(api.subjectsQuota.list, { schoolId });
   const classTracks = useQuery(api.classTracks.list, { schoolId });
+  const schoolBreaksList = useQuery(api.schoolBreaks.list, { schoolId });
+  const breaks = useMemo(() => schoolBreaksList || [], [schoolBreaksList]);
 
   /* ─ فلاتر ─ */
   const [activeTab, setActiveTab] = useState("teacher");
@@ -92,22 +94,58 @@ const ReportsPage = () => {
   const printRef = useRef(null);
   const termSettings = useMemo(() => {
     const t = termsData;
-    if (!t) return { start: "", end: "", effectiveWeeks: 0, filterStart: "", filterEnd: "", schoolName: "", principalName: "", viceNames: "", coordinatorName: "" };
+    if (!t) return { start: "", end: "", effectiveWeeks: 0, regularWeeks: 0, ramadanWeeks: 0, filterStart: "", filterEnd: "", schoolName: "", principalName: "", viceNames: "", coordinatorName: "" };
     const termStart = t.startDate || "";
     const termEnd = t.endDate || "";
     const start = fromDate || termStart;
     const end = toDate || termEnd;
-    const weeks = getWeeksBetween(start, end) || t.weekCount || 0;
+    const totalWeeks = getWeeksBetween(start, end) || t.weekCount || 0;
+    const periodStart = start ? new Date(start) : null;
+    const periodEnd = end ? new Date(end) : new Date();
+
+    // حساب أسابيع الإجازات
+    let holidayDays = 0;
+    if (periodStart && periodEnd) {
+      for (const b of breaks) {
+        const bs = new Date(b.startDate);
+        const be = new Date(b.endDate);
+        const os = bs > periodStart ? bs : periodStart;
+        const oe = be < periodEnd ? be : periodEnd;
+        if (oe >= os) {
+          holidayDays += Math.max(0, Math.round((oe - os) / (1000 * 60 * 60 * 24)) + 1);
+        }
+      }
+    }
+    const holidayWeeks = holidayDays / 7;
+
+    // حساب أسابيع رمضان
+    let ramadanWeeks = 0;
+    if (t.ramadanStart && t.ramadanEnd && periodStart && periodEnd) {
+      const rs = new Date(t.ramadanStart);
+      const re = new Date(t.ramadanEnd);
+      const os = rs > periodStart ? rs : periodStart;
+      const oe = re < periodEnd ? re : periodEnd;
+      if (oe >= os) {
+        ramadanWeeks = Math.max(1, Math.ceil((oe - os) / (1000 * 60 * 60 * 24 * 7)));
+      }
+    }
+
+    const regularWeeks = Math.max(0, totalWeeks - Math.ceil(holidayWeeks) - ramadanWeeks);
+
     return {
       start: termStart, end: termEnd,
-      effectiveWeeks: weeks,
+      effectiveWeeks: totalWeeks,
+      regularWeeks,
+      ramadanWeeks,
+      ramadanStart: t.ramadanStart,
+      ramadanEnd: t.ramadanEnd,
       filterStart: start, filterEnd: end,
       schoolName: t.schoolName || "",
       principalName: t.principalName || "",
       viceNames: t.viceNames || "",
       coordinatorName: t.coordinatorName || "",
     };
-  }, [termsData, fromDate, toDate]);
+  }, [termsData, fromDate, toDate, breaks]);
 
   /* ─ بناء index للـ track حسب الصف/الشعبة ─ */
   const trackIndex = useMemo(() => {
@@ -128,30 +166,39 @@ const ReportsPage = () => {
     return m;
   }, [classTracks]);
 
-  /* ─ دالة النصاب الأسبوعي ─ */
+  /* ─ دالة النصاب الأسبوعي (تُرجع weeklyQuota و ramadanQuota) ─ */
   const getWeeklyQuota = useMemo(() => {
     const quotaRows = subjectsQuota || [];
     return (grade, subjectName, track) => {
       const g = normalizeArabic(grade);
       const s = normalizeArabic(subjectName);
       const tr = normalizeArabic(track);
-      if (!g || !s) return 0;
+      if (!g || !s) return { weeklyQuota: 0, ramadanQuota: null };
       let hit = quotaRows.find(q =>
         normalizeArabic(q.grade) === g &&
         normalizeArabic(q.subjectName) === s &&
         normalizeArabic(q.track) === tr
       );
-      if (hit) return Number(hit.weeklyQuota || 0);
+      if (hit) return { weeklyQuota: Number(hit.weeklyQuota || 0), ramadanQuota: hit.ramadanQuota != null ? Number(hit.ramadanQuota) : null };
       hit = quotaRows.find(q =>
         normalizeArabic(q.grade) === g &&
         normalizeArabic(q.subjectName) === s
       );
-      if (hit) return Number(hit.weeklyQuota || 0);
+      if (hit) return { weeklyQuota: Number(hit.weeklyQuota || 0), ramadanQuota: hit.ramadanQuota != null ? Number(hit.ramadanQuota) : null };
       hit = quotaRows.find(q => normalizeArabic(q.subjectName) === s);
-      if (hit) return Number(hit.weeklyQuota || 0);
-      return 0;
+      if (hit) return { weeklyQuota: Number(hit.weeklyQuota || 0), ramadanQuota: hit.ramadanQuota != null ? Number(hit.ramadanQuota) : null };
+      return { weeklyQuota: 0, ramadanQuota: null };
     };
   }, [subjectsQuota]);
+
+  /* ─ دالة حساب الدروس المطلوبة مع رمضان والإجازات ─ */
+  const calcRequired = useCallback((weeklyQuota, ramadanQuota) => {
+    if (!weeklyQuota) return 0;
+    const rw = termSettings.regularWeeks || 0;
+    const rmw = termSettings.ramadanWeeks || 0;
+    const rq = ramadanQuota != null ? ramadanQuota : weeklyQuota;
+    return (rw * weeklyQuota) + (rmw * rq);
+  }, [termSettings]);
 
   /* ─ بناء بيانات المعلمين (نفس منطق TeachersPerformancePage) ─ */
   const teachersData = useMemo(() => {
@@ -196,14 +243,13 @@ const ReportsPage = () => {
 
   /* ─ إحصائيات المعلم ─ */
   const teacherStats = useMemo(() => {
-    const ew = termSettings.effectiveWeeks || 1;
-
     const rows = teacherLessons.map((l) => {
       /* النصاب من جدول subjectsQuota */
       const trackKey = String(l.grade || "").trim() + "::" + String(l.section || "").trim();
       const track = trackIndex.get(trackKey) || "";
-      const weeklyQuota = getWeeklyQuota(l.grade, l.subjectName, track);
-      const required = weeklyQuota > 0 ? weeklyQuota * ew : 0;
+      const quota = getWeeklyQuota(l.grade, l.subjectName, track);
+      const weeklyQuota = quota.weeklyQuota;
+      const required = calcRequired(weeklyQuota, quota.ramadanQuota);
       const visible = l.visibleLessons || 0;
       const total = l.totalLessons || 0;
       const completion = required > 0 ? Math.min(100, (visible / required) * 100) : 0;
@@ -281,7 +327,6 @@ const ReportsPage = () => {
 
   const deptStats = useMemo(() => {
     if (!lessonsAgg || !selectedDept) return { teachers: [], totals: null, subjectName: "" };
-    const ew = termSettings.effectiveWeeks || 1;
     const deptLessons = lessonsAgg.filter(l => (l.subjectName || "").trim() === selectedDept);
     const map = {};
     deptLessons.forEach(l => {
@@ -303,8 +348,8 @@ const ReportsPage = () => {
       t.total += l.totalLessons || 0;
       t.outcomes += l.lessonsWithOutcomes || 0;
       t.notes += l.lessonsWithNotes || 0;
-      const wq = getWeeklyQuota(l.grade, l.subjectName, trackIndex.get(String(l.grade || "").trim() + "::" + String(l.section || "").trim()) || "");
-      t.required += wq * ew;
+      const wqData = getWeeklyQuota(l.grade, l.subjectName, trackIndex.get(String(l.grade || "").trim() + "::" + String(l.section || "").trim()) || "");
+      t.required += calcRequired(wqData.weeklyQuota, wqData.ramadanQuota);
     });
     const teachers = Object.values(map).map(t => ({
       ...t,
@@ -328,7 +373,6 @@ const ReportsPage = () => {
   /* ─ ملخص كل الأقسام (للنظرة الشاملة) ─ */
   const allDeptStats = useMemo(() => {
     if (!lessonsAgg) return [];
-    const ew = termSettings.effectiveWeeks || 1;
     const map = {};
     lessonsAgg.forEach(l => {
       const subj = (l.subjectName || "").trim();
@@ -340,8 +384,8 @@ const ReportsPage = () => {
       m.outcomes += l.lessonsWithOutcomes || 0;
       m.notes += l.lessonsWithNotes || 0;
       m.teachers.add(l.teacherName);
-      const wq = getWeeklyQuota(l.grade, l.subjectName, trackIndex.get(String(l.grade || "").trim() + "::" + String(l.section || "").trim()) || "");
-      m.required += wq * ew;
+      const wqData = getWeeklyQuota(l.grade, l.subjectName, trackIndex.get(String(l.grade || "").trim() + "::" + String(l.section || "").trim()) || "");
+      m.required += calcRequired(wqData.weeklyQuota, wqData.ramadanQuota);
     });
     return Object.values(map).map(m => {
       /* مطابقة التقييمات للمادة */
@@ -367,7 +411,6 @@ const ReportsPage = () => {
   /* ─ ملخص كل الصفوف (للنظرة الشاملة) ─ */
   const allGradeStats = useMemo(() => {
     if (!lessonsAgg) return [];
-    const ew = termSettings.effectiveWeeks || 1;
     const map = {};
     lessonsAgg.forEach(l => {
       const key = `${l.grade || ""}/${l.section || ""}`;
@@ -376,8 +419,8 @@ const ReportsPage = () => {
       m.visible += l.visibleLessons || 0;
       m.total += l.totalLessons || 0;
       m.outcomes += l.lessonsWithOutcomes || 0;
-      const wq = getWeeklyQuota(l.grade, l.subjectName, trackIndex.get(String(l.grade || "").trim() + "::" + String(l.section || "").trim()) || "");
-      m.required += wq * ew;
+      const wqData = getWeeklyQuota(l.grade, l.subjectName, trackIndex.get(String(l.grade || "").trim() + "::" + String(l.section || "").trim()) || "");
+      m.required += calcRequired(wqData.weeklyQuota, wqData.ramadanQuota);
     });
     return Object.values(map).map(m => {
       const asmRows = assessmentsAgg?.filter(a => String(a.grade || "") === String(m.grade || "") && String(a.section || "") === String(m.section || "")) || [];
@@ -800,14 +843,13 @@ const ReportsPage = () => {
   const buildTeacherReportHTML = (teacherName) => {
     const tLessons = (lessonsAgg || []).filter(l => l.teacherName === teacherName);
     const tAssess = (assessmentsAgg || []).filter(a => a.teacherName === teacherName);
-    const ew = termSettings.effectiveWeeks || 1;
-
     // حساب الإحصائيات (نفس منطق teacherStats)
     const rows = tLessons.map(l => {
       const trackKey = String(l.grade || "").trim() + "::" + String(l.section || "").trim();
       const track = trackIndex.get(trackKey) || "";
-      const weeklyQ = getWeeklyQuota(l.grade, l.subjectName, track);
-      const required = weeklyQ > 0 ? weeklyQ * ew : 0;
+      const quotaData = getWeeklyQuota(l.grade, l.subjectName, track);
+      const weeklyQ = quotaData.weeklyQuota;
+      const required = calcRequired(weeklyQ, quotaData.ramadanQuota);
       const visible = l.visibleLessons || 0;
       const total = l.totalLessons || 0;
       const completion = required > 0 ? Math.min(100, (visible / required) * 100) : 0;
@@ -1207,6 +1249,37 @@ const ReportsPage = () => {
             </div>
           </div>
         </div>
+
+        {/* ── تنبيه تطبيق رمضان والإجازات ── */}
+        {(termSettings.ramadanWeeks > 0 || (termSettings.effectiveWeeks - termSettings.regularWeeks - termSettings.ramadanWeeks) > 0) && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-wrap items-start gap-3 mb-2">
+            <span className="text-lg leading-none">🌙</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold mb-1">تم تطبيق تعديلات على حساب الدروس المطلوبة</p>
+              <div className="flex flex-wrap gap-2 text-xs text-amber-800">
+                {termSettings.ramadanWeeks > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 border border-amber-300">
+                    🌙 رمضان: <strong>{toAr(termSettings.ramadanWeeks)} أسبوع</strong>
+                    {termSettings.ramadanStart && termSettings.ramadanEnd && (
+                      <span className="text-amber-600">
+                        ({new Date(termSettings.ramadanStart).toLocaleDateString("ar-QA")} – {new Date(termSettings.ramadanEnd).toLocaleDateString("ar-QA")})
+                      </span>
+                    )}
+                    — نصاب مخفَّض
+                  </span>
+                )}
+                {(termSettings.effectiveWeeks - termSettings.regularWeeks - termSettings.ramadanWeeks) > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 border border-amber-300">
+                    📅 إجازات: <strong>{toAr(termSettings.effectiveWeeks - termSettings.regularWeeks - termSettings.ramadanWeeks)} أسبوع</strong> — محذوفة
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 border border-green-300 text-green-800">
+                  ✅ عادي: <strong>{toAr(termSettings.regularWeeks)}</strong> | رمضان: <strong>{toAr(termSettings.ramadanWeeks)}</strong> | إجمالي: <strong>{toAr(termSettings.effectiveWeeks)}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="hidden" />

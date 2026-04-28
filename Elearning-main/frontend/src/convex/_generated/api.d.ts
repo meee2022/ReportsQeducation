@@ -14,6 +14,7 @@ import type * as email from "../email.js";
 import type * as emailTest from "../emailTest.js";
 import type * as lessonsAgg from "../lessonsAgg.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as schoolBreaks from "../schoolBreaks.js";
 import type * as stats from "../stats.js";
 import type * as studentInteractions from "../studentInteractions.js";
 import type * as studentLeaderboards from "../studentLeaderboards.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   emailTest: typeof emailTest;
   lessonsAgg: typeof lessonsAgg;
   myFunctions: typeof myFunctions;
+  schoolBreaks: typeof schoolBreaks;
   stats: typeof stats;
   studentInteractions: typeof studentInteractions;
   studentLeaderboards: typeof studentLeaderboards;

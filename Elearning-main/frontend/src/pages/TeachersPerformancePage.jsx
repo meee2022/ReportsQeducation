@@ -201,10 +201,12 @@ const TeachersPerformancePage = () => {
   const activeTerm = useQuery(api.terms.getActive);
   const subjectsQuota = useQuery(api.subjectsQuota.list, { schoolId });
   const classTracks = useQuery(api.classTracks.list, { schoolId });
+  const schoolBreaksList = useQuery(api.schoolBreaks.list, { schoolId });
 
   const lessons = useMemo(() => lessonsAgg || [], [lessonsAgg]);
   const quotaRows = useMemo(() => subjectsQuota || [], [subjectsQuota]);
   const trackRows = useMemo(() => classTracks || [], [classTracks]);
+  const breaks = useMemo(() => schoolBreaksList || [], [schoolBreaksList]);
 
   /* ----- حساب عدد الأسابيع ----- */
 
@@ -221,6 +223,52 @@ const TeachersPerformancePage = () => {
 
   const effectiveWeeks =
     filteredWeeks || (termWeeksPassed && termWeeksTotal ? termWeeksPassed : 0);
+
+  /* ----- تحديد الفترة الزمنية الفعلية للحسبة ----- */
+  const periodStart = useMemo(() => {
+    if (fromDate) return new Date(fromDate);
+    if (activeTerm?.startDate) return new Date(activeTerm.startDate);
+    return null;
+  }, [fromDate, activeTerm]);
+
+  const periodEnd = useMemo(() => {
+    if (toDate) return new Date(toDate);
+    return new Date();
+  }, [toDate]);
+
+  /* ----- حساب أسابيع الإجازات داخل الفترة ----- */
+  const holidayWeeks = useMemo(() => {
+    if (!periodStart || !periodEnd || breaks.length === 0) return 0;
+    let totalDays = 0;
+    for (const b of breaks) {
+      const bs = new Date(b.startDate);
+      const be = new Date(b.endDate);
+      const overlapStart = bs > periodStart ? bs : periodStart;
+      const overlapEnd = be < periodEnd ? be : periodEnd;
+      if (overlapEnd >= overlapStart) {
+        const days = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+        totalDays += Math.max(0, days);
+      }
+    }
+    return totalDays / 7;
+  }, [breaks, periodStart, periodEnd]);
+
+  /* ----- حساب أسابيع رمضان داخل الفترة ----- */
+  const ramadanWeeks = useMemo(() => {
+    if (!activeTerm?.ramadanStart || !activeTerm?.ramadanEnd || !periodStart || !periodEnd) return 0;
+    const rs = new Date(activeTerm.ramadanStart);
+    const re = new Date(activeTerm.ramadanEnd);
+    const overlapStart = rs > periodStart ? rs : periodStart;
+    const overlapEnd = re < periodEnd ? re : periodEnd;
+    if (overlapEnd < overlapStart) return 0;
+    return Math.max(1, Math.ceil((overlapEnd - overlapStart) / ONE_WEEK_MS));
+  }, [activeTerm, periodStart, periodEnd]);
+
+  /* ----- الأسابيع العادية (بدون رمضان وبدون إجازات) ----- */
+  const regularWeeks = useMemo(() =>
+    Math.max(0, effectiveWeeks - Math.ceil(holidayWeeks) - ramadanWeeks),
+    [effectiveWeeks, holidayWeeks, ramadanWeeks]
+  );
 
   /* ----- قوائم المدارس / المواد / الصفوف / الأقسام ----- */
 
@@ -303,6 +351,7 @@ const TeachersPerformancePage = () => {
     if (hit) {
       return {
         weeklyQuota: Number(hit.weeklyQuota || 0),
+        ramadanQuota: hit.ramadanQuota != null ? Number(hit.ramadanQuota) : null,
         matchedBy: "grade-subject-track",
       };
     }
@@ -316,6 +365,7 @@ const TeachersPerformancePage = () => {
     if (hit) {
       return {
         weeklyQuota: Number(hit.weeklyQuota || 0),
+        ramadanQuota: hit.ramadanQuota != null ? Number(hit.ramadanQuota) : null,
         matchedBy: "grade-subject",
       };
     }
@@ -327,16 +377,24 @@ const TeachersPerformancePage = () => {
     if (hit) {
       return {
         weeklyQuota: Number(hit.weeklyQuota || 0),
+        ramadanQuota: hit.ramadanQuota != null ? Number(hit.ramadanQuota) : null,
         matchedBy: "subject-only",
       };
     }
 
-    return { weeklyQuota: 0, matchedBy: "no-match" };
+    return { weeklyQuota: 0, ramadanQuota: null, matchedBy: "no-match" };
   }, [quotaRows]);
 
   /* ----- تجميع بيانات المعلمين من الدروس ----- */
 
   const teachersData = useMemo(() => {
+    // دالة مساعدة: حساب الدروس المطلوبة مع مراعاة رمضان والإجازات
+    const calcRequired = (weeklyQuota, ramadanQuota) => {
+      if (!weeklyQuota) return 0;
+      const rq = ramadanQuota != null ? ramadanQuota : weeklyQuota;
+      return (regularWeeks * weeklyQuota) + (ramadanWeeks * rq);
+    };
+
     const map = {};
 
     filteredLessons.forEach((row) => {
@@ -391,8 +449,7 @@ const TeachersPerformancePage = () => {
 
       const quota = getWeeklyQuota(row.grade, row.subjectName, track);
       const weeklyQuota = Number(quota.weeklyQuota || 0);
-      const requiredForClass =
-        weeklyQuota && effectiveWeeks ? weeklyQuota * effectiveWeeks : 0;
+      const requiredForClass = calcRequired(weeklyQuota, quota.ramadanQuota);
 
       if (weeklyQuota > 0) {
         t.hasQuota = true;
@@ -792,6 +849,37 @@ const TeachersPerformancePage = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── تنبيه تطبيق رمضان والإجازات ── */}
+        {(ramadanWeeks > 0 || holidayWeeks > 0) && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-wrap items-start gap-3">
+            <span className="text-lg leading-none">🌙</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold mb-1">تم تطبيق تعديلات على حساب الدروس المطلوبة</p>
+              <div className="flex flex-wrap gap-3 text-xs text-amber-800">
+                {ramadanWeeks > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 border border-amber-300">
+                    🌙 رمضان: <strong>{toAr(ramadanWeeks)} أسبوع</strong>
+                    {activeTerm?.ramadanStart && activeTerm?.ramadanEnd && (
+                      <span className="text-amber-600">
+                        ({new Date(activeTerm.ramadanStart).toLocaleDateString("ar-QA")} – {new Date(activeTerm.ramadanEnd).toLocaleDateString("ar-QA")})
+                      </span>
+                    )}
+                    — يُحسب بنصاب رمضان المخفَّض
+                  </span>
+                )}
+                {holidayWeeks > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 border border-amber-300">
+                    📅 إجازات: <strong>{toAr(Math.ceil(holidayWeeks))} أسبوع</strong> — محذوفة من الحساب
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 border border-green-300 text-green-800">
+                  ✅ أسابيع عادية: <strong>{toAr(regularWeeks)}</strong> | رمضان: <strong>{toAr(ramadanWeeks)}</strong> | إجمالي الفترة: <strong>{toAr(effectiveWeeks)}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* الرسوم البيانية */}
         <div className="grid gap-6 lg:grid-cols-2">
