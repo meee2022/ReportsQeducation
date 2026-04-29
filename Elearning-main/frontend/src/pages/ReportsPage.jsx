@@ -843,6 +843,8 @@ const ReportsPage = () => {
   const buildTeacherReportHTML = (teacherName) => {
     const tLessons = (lessonsAgg || []).filter(l => l.teacherName === teacherName);
     const tAssess = (assessmentsAgg || []).filter(a => a.teacherName === teacherName);
+    const ew = termSettings.effectiveWeeks || 1; // عدد الأسابيع الفعلية
+    
     // حساب الإحصائيات (نفس منطق teacherStats)
     const rows = tLessons.map(l => {
       const trackKey = String(l.grade || "").trim() + "::" + String(l.section || "").trim();
