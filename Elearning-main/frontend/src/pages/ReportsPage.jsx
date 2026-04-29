@@ -704,6 +704,120 @@ const ReportsPage = () => {
     setTimeout(() => { win.print(); win.close(); }, 700);
   };
 
+  /* ── طباعة ملخص القسم فقط (inline styles — بدون Tailwind) ── */
+  const handlePrintDeptSummary = () => {
+    if (!selectedDept || !deptStats?.teachers?.length) return;
+    const t = deptStats.totals;
+    const schoolNameStr = termSettings.schoolName || deptStats.teachers[0]?.schoolName || "";
+    const printDate = new Date().toLocaleDateString("en-US");
+    const n = (v) => `<span style="font-family:Arial,sans-serif">${Number(v || 0).toLocaleString("en-US")}</span>`;
+    const pctHTML = (v) => {
+      const val = Math.min(100, Number(v || 0));
+      const color = val >= 80 ? "#16a34a" : val >= 50 ? "#ca8a04" : "#dc2626";
+      const icon = val >= 80 ? "✓" : val >= 50 ? "!" : "✗";
+      return `<span style="color:${color};font-weight:700">${icon} <span style="font-family:Arial,sans-serif">${val.toFixed(1)}%</span></span>`;
+    };
+    const teacherRows = deptStats.teachers.map((tc, i) => {
+      const compColor = tc.completion >= 80 ? "#dcfce7" : tc.completion >= 50 ? "#fef9c3" : "#fee2e2";
+      return `<tr style="background:${i % 2 === 0 ? "#fff" : "#f8fafc"}">
+        <td style="border:1px solid #e2e8f0;padding:4px 3px;text-align:center;color:#9ca3af">${i + 1}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px 6px;text-align:right;font-weight:700;font-size:11px">${tc.teacherName}</td>
+        <td style="border:1px solid #e2e8f0;padding:3px 4px;text-align:center;font-size:8px;color:#64748b;line-height:1.5">${tc.sections.map(s => `<span style="display:inline-block;background:#f1f5f9;border-radius:3px;padding:1px 3px;margin:1px">${s}</span>`).join("")}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center">${n(tc.classes)}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center">${tc.required > 0 ? n(tc.required) : "—"}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center;font-weight:700;color:#1d4ed8">${n(tc.visible)}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center;color:#ea580c">${n(tc.total - tc.visible)}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center">${n(tc.outcomes)}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center">${n(tc.notes)}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center;background:${compColor};font-weight:700">${pctHTML(tc.completion)}</td>
+        <td style="border:1px solid #e2e8f0;padding:4px;text-align:center">${pctHTML(tc.outcomesRatio)}</td>
+      </tr>`;
+    }).join("");
+    const totRow = `<tr style="background:#7f1d1d;color:white;font-weight:700">
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center" colspan="3">الإجمالي</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center">${n(t.teachers)}</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center">${n(t.required)}</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center">${n(t.visible)}</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center">${n(t.total - t.visible)}</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center">${n(t.outcomes)}</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center">—</td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center"><span style="font-family:Arial,sans-serif">${Math.min(100, t.completion).toFixed(1)}%</span></td>
+      <td style="border:1px solid #991b1b;padding:5px;text-align:center"><span style="font-family:Arial,sans-serif">${Math.min(100, t.outcomesRatio).toFixed(1)}%</span></td>
+    </tr>`;
+    const win = window.open("", "_blank");
+    win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar-u-nu-latn">
+    <head>
+      <meta charset="UTF-8"/>
+      <title>ملخص قسم ${selectedDept}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+        @page { size: A4 landscape; margin: 10mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Cairo', Arial, sans-serif; font-size: 10px; direction: rtl; color: #1e293b;
+               -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #7f1d1d !important; color: white !important; padding: 6px 4px;
+             border: 1px solid #991b1b; text-align: center; font-weight: 700;
+             -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        [style*="background:#d"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        [style*="background:#f"] { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      </style>
+    </head>
+    <body>
+      <div style="background:#7f1d1d;color:white;padding:10px 16px;border-radius:8px;margin-bottom:12px;
+                  display:flex;justify-content:space-between;align-items:center;
+                  -webkit-print-color-adjust:exact;print-color-adjust:exact">
+        <div>
+          <div style="font-size:16px;font-weight:800">${schoolNameStr || "ملخص القسم"}</div>
+          <div style="font-size:11px;opacity:0.85;margin-top:3px">القسم: ${selectedDept}</div>
+        </div>
+        <div style="font-size:10px;opacity:0.75">تاريخ التقرير: ${printDate}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px">
+        <div style="background:#eff6ff !important;border:1.5px solid #93c5fd;border-radius:6px;padding:6px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px">عدد المعلمين</div>
+          <div style="font-size:18px;font-weight:800;color:#1d4ed8;font-family:Arial,sans-serif">${t.teachers}</div>
+        </div>
+        <div style="background:${t.completion >= 80 ? "#f0fdf4" : "#fef2f2"} !important;border:1.5px solid ${t.completion >= 80 ? "#86efac" : "#fca5a5"};border-radius:6px;padding:6px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px">اكتمال الدروس</div>
+          <div style="font-size:18px;font-weight:800;color:${t.completion >= 80 ? "#16a34a" : "#dc2626"};font-family:Arial,sans-serif">${Math.min(100, t.completion).toFixed(1)}%</div>
+        </div>
+        <div style="background:${t.outcomesRatio >= 80 ? "#f0fdf4" : "#fef2f2"} !important;border:1.5px solid ${t.outcomesRatio >= 80 ? "#86efac" : "#fca5a5"};border-radius:6px;padding:6px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px">نسبة المخرجات</div>
+          <div style="font-size:18px;font-weight:800;color:${t.outcomesRatio >= 80 ? "#16a34a" : "#dc2626"};font-family:Arial,sans-serif">${Math.min(100, t.outcomesRatio).toFixed(1)}%</div>
+        </div>
+        <div style="background:#eff6ff !important;border:1.5px solid #93c5fd;border-radius:6px;padding:6px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px">الدروس الظاهرة</div>
+          <div style="font-size:18px;font-weight:800;color:#1d4ed8;font-family:Arial,sans-serif">${t.visible}</div>
+        </div>
+        <div style="background:#eff6ff !important;border:1.5px solid #93c5fd;border-radius:6px;padding:6px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+          <div style="font-size:9px;color:#64748b;margin-bottom:2px">الدروس المطلوبة</div>
+          <div style="font-size:18px;font-weight:800;color:#374151;font-family:Arial,sans-serif">${t.required}</div>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:4%">#</th>
+          <th style="width:18%">اسم المعلم</th>
+          <th style="width:20%">الشعب</th>
+          <th style="width:6%">عدد الشعب</th>
+          <th style="width:7%">المطلوب</th>
+          <th style="width:7%">الظاهرة</th>
+          <th style="width:7%">المخفية</th>
+          <th style="width:7%">بمخرجات</th>
+          <th style="width:7%">بملاحظات</th>
+          <th style="width:10%">اكتمال الدروس</th>
+          <th style="width:10%">نسبة المخرجات</th>
+        </tr></thead>
+        <tbody>${teacherRows}</tbody>
+        <tfoot>${totRow}</tfoot>
+      </table>
+    </body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 500);
+  };
+
   /* ── توليد PDF من printRef (يلتقط كامل العرض بما فيه الأجزاء المخفية) ── */
   const generatePDF = async (customFileName = "report") => {
     const content = printRef.current;
@@ -1075,13 +1189,15 @@ const ReportsPage = () => {
       </table>`;
   };
 
-  /* ── تحميل كل تقارير القسم كملفات منفصلة ── */
+  /* ── تحميل كل تقارير القسم كملف ZIP واحد ── */
   const downloadAllDeptReportsSeparate = async () => {
     if (!selectedDept || !deptStats?.teachers?.length) return;
     setZipLoading(true);
     const teachers = deptStats.teachers;
     const from = termSettings.filterStart || termSettings.start || "بداية_الفصل";
     const to = termSettings.filterEnd || termSettings.end || "نهاية_الفصل";
+    const zip = new JSZip();
+    let successCount = 0;
 
     for (let i = 0; i < teachers.length; i++) {
       const tc = teachers[i];
@@ -1092,26 +1208,36 @@ const ReportsPage = () => {
         const safeName = tc.teacherName.replace(/[^\w\u0600-\u06FF]/g, "_");
         const fileName = `${safeName}_${from}_${to}.pdf`;
         
-        // إنشاء Blob وتحميل الملف
-        const blob = new Blob([pdfBuffer], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
-        
-        // انتظار قليلاً بين كل تحميل
-        await new Promise(r => setTimeout(r, 500));
+        zip.file(fileName, pdfBuffer);
+        successCount++;
+        // فترة راحة صغيرة بين كل تقرير لمنع تجميد المتصفح
+        await new Promise(r => setTimeout(r, 100));
       } catch (e) {
         console.error(`Error generating PDF for ${tc.teacherName}:`, e);
       }
     }
-    
+
+    try {
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+      });
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const za = document.createElement("a");
+      za.href = zipUrl;
+      za.download = `تقارير_قسم_${from}_${to}.zip`;
+      document.body.appendChild(za);
+      za.click();
+      setTimeout(() => { URL.revokeObjectURL(zipUrl); document.body.removeChild(za); }, 300);
+    } catch (e) {
+      console.error("ZIP generation error:", e);
+      alert("حدث خطأ أثناء إنشاء ملف ZIP");
+    }
+
     setZipLoading(false);
     setZipProgress({ current: 0, total: 0 });
-    alert(`✓ تم تنزيل ${teachers.length} تقرير بنجاح`);
+    alert(`✓ تم تحميل ${successCount} تقرير في ملف ZIP واحد`);
   };
 
   const handleTeacherEmail = async () => {
@@ -1906,7 +2032,7 @@ const ReportsPage = () => {
                 </div>
                 {selectedDept && deptStats.teachers.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
-                    <Button onClick={handlePrint} className="gap-2" size="sm"
+                    <Button onClick={handlePrintDeptSummary} className="gap-2" size="sm"
                       style={{ background: MAROON, color: "#fff" }}>
                       <Printer className="h-4 w-4" /> طباعة ملخص القسم
                     </Button>
