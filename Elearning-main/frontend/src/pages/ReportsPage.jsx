@@ -903,7 +903,7 @@ const ReportsPage = () => {
   const generatePDFBlobFromHTML = async (htmlContent) => {
     const printDate = new Date().toLocaleDateString("en-US");
     const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:1400px;height:900px;border:0;visibility:hidden";
+    iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:1800px;height:900px;border:0;visibility:hidden";
     document.body.appendChild(iframe);
     try {
       iframe.contentDocument.write(`
@@ -913,12 +913,13 @@ const ReportsPage = () => {
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
             * { box-sizing:border-box; margin:0; padding:0; }
-            body { font-family:'Cairo',Arial,sans-serif; font-size:10px; direction:rtl; background:#fff; color:#111; }
+            body { font-family:'Cairo',Arial,sans-serif; font-size:9px; direction:rtl; background:#fff; color:#111; }
             .print-header { background:#7f1d1d !important; color:white !important; padding:8px 14px; border-radius:7px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
-            table { width:100%; border-collapse:collapse; margin-bottom:6px; table-layout:fixed; }
-            th { background:#7f1d1d !important; color:white !important; padding:4px 3px; border:1px solid #ccc; font-size:9px; text-align:center; }
-            td { padding:3px 2px; border:1px solid #ddd; text-align:center; font-size:9px; word-break:break-word; }
+            table { width:100%; border-collapse:collapse; margin-bottom:6px; }
+            th { background:#7f1d1d !important; color:white !important; padding:4px 2px; border:1px solid #ccc; font-size:8.5px; text-align:center; white-space:normal; }
+            td { padding:3px 2px; border:1px solid #e2e8f0; text-align:center; font-size:8.5px; vertical-align:middle; overflow:hidden; }
             tr:nth-child(even) td { background:#fff5f5 !important; }
+            span[style*="border-radius"] { display:inline-block; white-space:nowrap; }
           </style>
         </head>
         <body>
@@ -1009,7 +1010,7 @@ const ReportsPage = () => {
     const cl = v => v >= 90 ? "#16a34a" : v >= 70 ? "#ca8a04" : "#dc2626";
     const bg = v => v >= 90 ? "#f0fdf4" : v >= 70 ? "#fefce8" : "#fef2f2";
     const mk = v => v >= 90 ? "✓" : v >= 70 ? "⚠" : "✗";
-    const badge = (v, lbl) => `<span style="background:${bg(v)};color:${cl(v)};border:1px solid ${cl(v)};border-radius:999px;padding:1px 8px;font-size:10px;font-weight:700">${mk(v)} ${lbl}</span>`;
+    const badge = (v, lbl) => `<span style="display:inline-block;white-space:nowrap;vertical-align:middle;background:${bg(v)};color:${cl(v)};border:1px solid ${cl(v)};border-radius:4px;padding:2px 5px;font-size:8.5px;font-weight:700;line-height:1.3">${mk(v)} ${lbl}</span>`;
 
     // ── متبقي badge ──
     const rem = totRequired - totVisible;
@@ -1022,23 +1023,25 @@ const ReportsPage = () => {
       const compRatio = r.required > 0 ? r.visible / r.required : 0;
       const rowBg = compRatio < 0.7 && r.required > 0 ? "#fff1f2" : compRatio < 1 && r.required > 0 ? "#fffbeb" : i % 2 === 0 ? "#fff" : "#f0fdf4";
       const secPct = r.total > 0 ? (r.lessonsWithSections / r.total) * 100 : 0;
+      const td = (content, extra = "") => `<td style="border:1px solid #e2e8f0;padding:3px 2px;text-align:center;font-size:8.5px;vertical-align:middle;overflow:hidden${extra}">${content}</td>`;
+      const tdr = (content) => `<td style="border:1px solid #e2e8f0;padding:3px 4px;text-align:right;font-size:8.5px;vertical-align:middle;overflow:hidden;word-break:break-word">${content}</td>`;
       return `<tr style="background:${rowBg}">
-        <td style="border:1px solid #ddd;padding:3px;text-align:center;color:#888">${i + 1}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:right;font-weight:600">${r.subjectName}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${r.grade}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${r.section}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${r.weeklyQuota || "—"}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center;font-weight:600">${r.required > 0 ? n(r.required) : "—"}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center;font-weight:700;color:${cl(compRatio * 100)}">${n(r.visible)}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center;color:${r.total - r.visible > 0 ? "#dc2626" : "#9ca3af"}">${n(r.total - r.visible)}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${n(r.lessonsWithNotes)}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center;color:${cl(r.lessonsWithOutcomes / Math.max(r.total, 1) * 100)}">${n(r.lessonsWithOutcomes)}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${badge(r.completion, pc(r.completion))}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${badge(secPct, secPct >= 90 ? "نعم" : "لا")}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${n(r.assessmentsCount)}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${n(r.submissionsCount)}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${badge(r.solvePercentage, pc(r.solvePercentage))}</td>
-        <td style="border:1px solid #ddd;padding:3px;text-align:center">${badge(r.correctionPct, pc(r.correctionPct))}</td>
+        ${td(i + 1, ";color:#9ca3af")}
+        ${tdr(`<span style="font-weight:600">${r.subjectName}</span>`)}
+        ${td(r.grade)}
+        ${td(r.section)}
+        ${td(r.weeklyQuota || "—")}
+        ${td(`<span style="font-weight:600">${r.required > 0 ? n(r.required) : "—"}</span>`)}
+        ${td(`<span style="font-weight:700;color:${cl(compRatio * 100)}">${n(r.visible)}</span>`)}
+        ${td(`<span style="color:${r.total - r.visible > 0 ? "#dc2626" : "#9ca3af"}">${n(r.total - r.visible)}</span>`)}
+        ${td(n(r.lessonsWithNotes))}
+        ${td(`<span style="color:${cl(r.lessonsWithOutcomes / Math.max(r.total, 1) * 100)}">${n(r.lessonsWithOutcomes)}</span>`)}
+        ${td(badge(r.completion, pc(r.completion)))}
+        ${td(badge(secPct, secPct >= 90 ? "نعم" : "لا"))}
+        ${td(n(r.assessmentsCount))}
+        ${td(n(r.submissionsCount))}
+        ${td(badge(r.solvePercentage, pc(r.solvePercentage)))}
+        ${td(badge(r.correctionPct, pc(r.correctionPct)))}
       </tr>`;
     }).join("");
 
@@ -1123,25 +1126,43 @@ const ReportsPage = () => {
             </td>`).join("")}
         </tr>
       </table>
-      <div style="overflow-x:auto;margin-bottom:12px;border-radius:4px;border:1px solid #ddd">
-        <table style="width:100%;border-collapse:collapse;font-size:9px;direction:rtl">
+      <div style="margin-bottom:12px;border-radius:4px;border:1px solid #ddd">
+        <table style="width:100%;border-collapse:collapse;font-size:8.5px;direction:rtl;table-layout:fixed">
+          <colgroup>
+            <col style="width:3%"/>
+            <col style="width:13%"/>
+            <col style="width:4%"/>
+            <col style="width:4%"/>
+            <col style="width:5%"/>
+            <col style="width:5%"/>
+            <col style="width:5%"/>
+            <col style="width:5%"/>
+            <col style="width:6%"/>
+            <col style="width:6%"/>
+            <col style="width:9%"/>
+            <col style="width:6%"/>
+            <col style="width:5%"/>
+            <col style="width:5%"/>
+            <col style="width:9%"/>
+            <col style="width:10%"/>
+          </colgroup>
           <thead><tr style="background:#7f1d1d;color:white">
-            <th style="border:1px solid #9b2c2c;padding:4px">#</th>
-            <th style="border:1px solid #9b2c2c;padding:4px;text-align:right">المادة</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">الصف</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">الشعبة</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">نصاب/أسبوع</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">المطلوب</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">الظاهرة</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">المخفية</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">مع ملاحظات</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">مع مخرجات</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">اكتمال الدروس</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">ربط الجدول</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">التقييمات</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">التسليمات</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">نسبة الحل</th>
-            <th style="border:1px solid #9b2c2c;padding:4px">نسبة التصحيح</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">#</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 3px;text-align:right">المادة</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">الصف</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">الشعبة</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">نصاب</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">المطلوب</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">الظاهرة</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">المخفية</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">ملاحظات</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">مخرجات</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">اكتمال الدروس</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">ربط الجدول</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">التقييمات</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">التسليمات</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">نسبة الحل</th>
+            <th style="border:1px solid #9b2c2c;padding:4px 2px">نسبة التصحيح</th>
           </tr></thead>
           <tbody>${tableRows || `<tr><td colspan="16" style="text-align:center;padding:10px;color:#999">لا توجد بيانات</td></tr>`}</tbody>
         </table>
